@@ -22,5 +22,8 @@
     github - командная работа
     база данных PostgreSQL
     python 3.10.1
+    библиотеки:
+        vk_api
+        sqlalchemy
 
     
