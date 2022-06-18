@@ -28,3 +28,11 @@ CREATE TABLE IF NOT EXISTS photos (
 	link varchar(160) NOT NULL,
 	likes int
 	);
+
+CREATE TABLE IF NOT EXISTS req_params (
+    user_id int PRIMARY KEY REFERENCES users (user_id),
+    sex bool,
+    city varchar(80),
+    age1 int,
+    age2 int
+    );
