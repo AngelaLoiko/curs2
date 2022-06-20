@@ -2,6 +2,7 @@ VKinder
 Реализовать бота по аналогии с Tinder - приложение для знакомств
 Бот: https://vk.com/public213985884
 https://dev.vk.com/method - api vk
+https://dev.vk.com/reference/objects/user
     ищет людей из VK, используя:
             диапазон возраста
             пол
