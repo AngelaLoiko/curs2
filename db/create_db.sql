@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS relation (
 	relation varchar(40) NOT NULL
 	);
 
-CREATE TABLE IF NOT EXIST sex (
+CREATE TABLE IF NOT EXISTS sex (
 	id_sex smallint PRIMARY KEY,
 	sex varchar(10)
 	);
