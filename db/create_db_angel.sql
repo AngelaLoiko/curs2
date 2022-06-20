@@ -1,3 +1,5 @@
+CREATE DATABASE vkinder;
+
 CREATE TABLE IF NOT EXISTS status (
 	id_status smallint PRIMARY KEY,
 	status varchar(20) NOT NULL
@@ -10,15 +12,15 @@ CREATE TABLE IF NOT EXISTS relation (
 	);
 COMMENT ON TABLE relation IS 'Справочник статусов пользователей Вконтакте';
 
-CREATE TABLE IF NOT EXISTS  sex (
+CREATE TABLE IF NOT EXISTS sex (
 	id_sex smallint PRIMARY KEY,
-	sex varchar(20) NOT NULL
-);
-
+	sex varchar(10)
+	);
 COMMENT ON TABLE sex IS 'Справочник пола';
 INSERT INTO sex (id_sex, sex) VALUES(0, 'любой');
 INSERT INTO sex (id_sex, sex) VALUES(1, 'женский');
 INSERT INTO sex (id_sex, sex) VALUES(2, 'мужской');
+
 
 CREATE TABLE IF NOT EXISTS users (
 	id_user serial PRIMARY KEY,
@@ -33,6 +35,7 @@ CREATE TABLE IF NOT EXISTS users (
 	url varchar(160) NOT NULL
 	);
 COMMENT ON TABLE users IS 'Таблица пользователей Вконтакте';
+
 
 CREATE TABLE IF NOT EXISTS user_candidate (
 	id_user_candidate serial PRIMARY KEY,
@@ -54,10 +57,31 @@ COMMENT ON TABLE photo IS 'Таблица фотографий пользова�
 
 CREATE TABLE IF NOT EXISTS req_params (
 	id_user int PRIMARY KEY REFERENCES users (id_user),
-	id_sex smallint REFERENCES sex (id_sex) default 0,
+	id_sex smallint REFERENCES sex (id_sex),
 	id_city int,
 	age_from int,
 	age_to int,
 	id_relation smallint REFERENCES relation (id_relation)
 	);
 COMMENT ON TABLE req_params IS 'Таблица параметров запроса';
+
+INSERT INTO status (id_status, status)
+VALUES
+	(0, 'Не просмотрено'),
+	(1, 'Просмотрено'),
+	(2, 'Избранное'),
+	(3, 'Чёрный список')
+;
+
+INSERT INTO relation (id_relation, relation)
+VALUES
+	(0, 'Не определено'),
+	(1, 'Не женат/Не замужем'),
+	(2, 'Есть друг/подруга'),
+	(3, 'Помолвлен(-а)'),
+	(4, 'Женат/Замужем'),
+	(5, 'Всё сложно'),
+	(6, 'В активном поиске'),
+	(7, 'Влюблён(-а)'),
+	(8, 'В гражданском браке')
+;
