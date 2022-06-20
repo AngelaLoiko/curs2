@@ -2,47 +2,48 @@ CREATE DATABASE vkinder;
 
 CREATE TABLE IF NOT EXISTS status (
 	id_status smallint PRIMARY KEY,
-	status varchar(80)
+	status varchar(20) NOT NULL
 	);
 
-CREATE TABLE IF NOT EXISTS user (
+CREATE TABLE IF NOT EXISTS relation (
+	id_relation smallint PRIMARY KEY,
+	relation varchar(40) NOT NULL
+	);
+
+CREATE TABLE IF NOT EXISTS users (
 	id_user serial PRIMARY KEY,
-	id_vk integer,
-	id_vk_str varchar(80),
+	id_vk int NOT NULL,
+	id_vk_str varchar(80) NOT NULL,
 	first_name varchar(80),
 	last_name varchar(80),
-	sex smallint,
-	id_city integer,
+	sex smallint NOT NULL,
+	id_city int,
 	bdate date,
-	age_from smallint,
-	age_to smallint,
-	id_status int REFERENCES status (id_status),
-	url varchar(160)
+	id_relation int REFERENCES relation (id_relation),
+	url varchar(160) NOT NULL
 	);
 
 CREATE TABLE IF NOT EXISTS user_candidate (
-    id_user_candidate serial PRIMARY KEY,
+	id_user_candidate serial PRIMARY KEY,
 	id_user int REFERENCES users (id_user),
 	id_candidate int REFERENCES users (id_user),
-	elected boolean,
-	blacklisted boolean,
-	search_date timestamptz
-
-	PRIMARY KEY (id_user_candidate)
+	status_id smallint REFERENCES status (id_status),
+	search_date timestamp
 	);
 
 CREATE TABLE IF NOT EXISTS photo (
 	id_photo serial PRIMARY KEY,
-	id_user int REFERENCES user (id_user),
-	link varchar(160) NOT NULL,
+	id_user int REFERENCES users (id_user),
+	url varchar(160) NOT NULL,
 	likes_count int,
-	like boolean
+	liked bool
 	);
 
 CREATE TABLE IF NOT EXISTS req_params (
-    user_id int PRIMARY KEY REFERENCES users (user_id),
-    sex bool,
-    city varchar(80),
-    age1 int,
-    age2 int
-    );
+	id_user int PRIMARY KEY REFERENCES users (id_user),
+	sex smallint NOT NULL,
+	id_city int,
+	age_from int,
+	age_to int,
+	id_relation smallint
+	);
