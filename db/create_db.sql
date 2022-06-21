@@ -16,11 +16,7 @@ CREATE TABLE IF NOT EXISTS sex (
 	id_sex smallint PRIMARY KEY,
 	sex varchar(10)
 	);
-COMMENT ON TABLE sex IS 'Справочник пола';
-INSERT INTO sex (id_sex, sex) VALUES(0, 'любой');
-INSERT INTO sex (id_sex, sex) VALUES(1, 'женский');
-INSERT INTO sex (id_sex, sex) VALUES(2, 'мужской');
-
+COMMENT ON TABLE sex IS 'Справочник полов';
 
 CREATE TABLE IF NOT EXISTS users (
 	id_user serial PRIMARY KEY,
@@ -59,19 +55,19 @@ CREATE TABLE IF NOT EXISTS req_params (
 	id_user int PRIMARY KEY REFERENCES users (id_user),
 	id_sex smallint REFERENCES sex (id_sex),
 	id_city int,
-	age_from int,
-	age_to int,
+	age_from smallint,
+	age_to smallint,
 	id_relation smallint REFERENCES relation (id_relation)
 	);
 COMMENT ON TABLE req_params IS 'Таблица параметров запроса';
+
 
 INSERT INTO status (id_status, status) 
 VALUES
 	(0, 'Не просмотрено'),
 	(1, 'Просмотрено'),
 	(2, 'Избранное'),
-	(3, 'Чёрный список')
-;
+	(3, 'Чёрный список');
 
 INSERT INTO relation (id_relation, relation)
 VALUES
@@ -83,5 +79,10 @@ VALUES
 	(5, 'Всё сложно'),
 	(6, 'В активном поиске'),
 	(7, 'Влюблён(-а)'),
-	(8, 'В гражданском браке')
-;
+	(8, 'В гражданском браке');
+
+INSERT INTO sex (id_sex, sex)
+VALUES
+    (0, 'Любой'),
+    (1, 'Женский'),
+    (2, 'Мужской');
