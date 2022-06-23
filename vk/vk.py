@@ -38,21 +38,7 @@ class VkUser:
         return current_year - int(bdate[-4:])
 
 class VKCandidates:
-    sex = {
-              "0": "любой",
-              "1": "женский",
-              "2": "мужской"
-          }
-    relation = {
-        "1": "не женат/не замужем",
-        "2": "есть друг/есть подруга",
-        "3": "помолвлен/помолвлена",
-        "4": "женат/замужем",
-        "5": "всё сложно",
-        "6": "в активном поиске",
-        "7": "влюблён/влюблена",
-        "8": "в гражданском браке"
-    }
+
     def __init__(self, sex, relation, token = settings.user_record["TOKEN_VK"]  ):
         self.vk = vk_api.VkApi(token=token)
         self.vk_api = self.vk.get_api()
