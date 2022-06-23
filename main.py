@@ -1,14 +1,14 @@
 from random import randrange
 
 import vk_api
-from vk_api.longpoll import VkLongPoll, VkEventType
+from vk_api.bot_longpoll import VkBotLongPoll, VkBotEventType
 import settings
 
 
 #token = input('Token: ')
 
-vk = vk_api.VkApi(token=settings.group_record["TOKEN_VK"])
-longpoll = VkLongPoll(vk)
+vk = vk_api.VkApi(token=settings.group_record["TOKEN_GROUP"])
+longpoll = VkBotLongPoll(vk, group_id=213985884)
 
 
 def write_msg(user_id, message):
@@ -16,14 +16,14 @@ def write_msg(user_id, message):
 
 
 for event in longpoll.listen():
-    if event.type == VkEventType.MESSAGE_NEW:
+    if event.type == VkBotEventType.MESSAGE_NEW:
 
-        if event.to_me:
-            request = event.text
+        if event.from_user:
+            request = event.message
 
             if request == "привет":
-                write_msg(event.user_id, f"Хай, {event.user_id}")
+                write_msg(event.chat_id, f"Хай, {event.chat_id}")
             elif request == "пока":
-                write_msg(event.user_id, "Пока((")
+                write_msg(event.chat_id, "Пока((")
             else:
-                write_msg(event.user_id, "Не поняла вашего ответа...")
+                write_msg(event.chat_id, "Не поняла вашего ответа...")
