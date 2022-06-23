@@ -24,14 +24,13 @@ CREATE TABLE IF NOT EXISTS users (
 	id_vk_str varchar(80) NOT NULL,
 	first_name varchar(80),
 	last_name varchar(80),
-	id_sex smallint NOT NULL REFERENCES sex (id_sex) default 0,
+	id_sex smallint NOT NULL REFERENCES sex (id_sex) DEFAULT 0,
 	id_city int,
 	bdate date,
 	id_relation int REFERENCES relation (id_relation),
 	url varchar(160) NOT NULL
 	);
 COMMENT ON TABLE users IS 'Таблица пользователей Вконтакте';
-
 
 CREATE TABLE IF NOT EXISTS user_candidate (
 	id_user_candidate serial PRIMARY KEY,
@@ -46,8 +45,7 @@ CREATE TABLE IF NOT EXISTS photo (
 	id_photo serial PRIMARY KEY,
 	id_user int REFERENCES users (id_user),
 	url varchar(160) NOT NULL,
-	likes_count int,
-	liked bool
+	likes_count int
 	);
 COMMENT ON TABLE photo IS 'Таблица фотографий пользователей';
 
