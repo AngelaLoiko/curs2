@@ -1,0 +1,41 @@
+{
+    "one_time": false,
+    "buttons": [
+      [
+         {
+            "action":{
+               "type":"text",
+               "payload":"{\"button\": \"Next\"}",
+               "label":"Дальше"
+            },
+            "color":"primary"
+         },
+         {
+            "action":{
+               "type":"text",
+               "payload":"{\"button\": \"Like\"}",
+               "label":"Нравится"
+            },
+            "color":"positive"
+         },
+         {
+            "action":{
+               "type":"text",
+               "payload":"{\"button\": \"BL\"}",
+               "label":"В ЧС"
+            },
+            "color":"negative"
+         }
+      ],
+       [
+         {
+            "action":{
+               "type":"text",
+               "payload":"{\"button\": \"Favorites\"}",
+               "label":"Избранное"
+            },
+            "color":"secondary"
+         }
+      ]
+    ]
+}

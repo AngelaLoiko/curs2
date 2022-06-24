@@ -3,27 +3,24 @@ from random import randrange
 import vk_api
 from vk_api.bot_longpoll import VkBotLongPoll, VkBotEventType
 import settings
+import json
 
 
-#token = input('Token: ')
+with open('keyboard.json', encoding='utf-8') as fp:
+    keyboard_4btn = json.dumps(json.load(fp))
+
 
 vk = vk_api.VkApi(token=settings.group_record["TOKEN_GROUP"])
 longpoll = VkBotLongPoll(vk, group_id=213985884)
 
 
-def write_msg(user_id, message):
-    vk.method('messages.send', {'user_id': user_id, 'message': message,  'random_id': randrange(10 ** 7),})
+def write_msg(chat_id, message, keyboard=keyboard_4btn):
+    vk.method('messages.send', {'chat_id': chat_id, 'message': message, 'keyboard': keyboard,
+                                'random_id': randrange(10 ** 7)})
 
 
 for event in longpoll.listen():
     if event.type == VkBotEventType.MESSAGE_NEW:
-
-        if event.from_user:
-            request = event.message
-
-            if request == "привет":
-                write_msg(event.chat_id, f"Хай, {event.chat_id}")
-            elif request == "пока":
-                write_msg(event.chat_id, "Пока((")
-            else:
-                write_msg(event.chat_id, "Не поняла вашего ответа...")
+        # print('MESSAGE RECEIVED!')
+        request = event.message['text']
+        write_msg(event.chat_id, 'hey')
