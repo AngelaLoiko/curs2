@@ -2,8 +2,11 @@ from random import randrange
 
 import vk_api
 from vk_api.bot_longpoll import VkBotLongPoll, VkBotEventType
-import settings
+from datetime import datetime
 import json
+import settings
+import vk.vk as vkc
+import db.base_db as db
 
 
 with open('keyboard.json', encoding='utf-8') as fp:
@@ -21,6 +24,48 @@ def write_msg(chat_id, message, keyboard=keyboard_4btn):
 
 for event in longpoll.listen():
     if event.type == VkBotEventType.MESSAGE_NEW:
-        # print('MESSAGE RECEIVED!')
-        request = event.message['text']
-        write_msg(event.chat_id, 'hey')
+        # Получено новое сообщение от пользователя. Определяем пользователя и получаем его инфо
+        id_user = event.message['from_id']
+        user = vkc.VkUser(id_user)
+        user.get_user_data()
+        user_age = datetime.now().year - datetime.strptime(user.data['bdate'], '%d.%M.%Y').year
+        # TODO set parameters and search for candidates
+        # Получаем параметры для поиска кандидатов
+        candidate = vkc.VKCandidates(sex=3-user.get_user_sex(), relation=1)
+        cand_list = candidate.get_users_search(**{'count': 10, 'city': user.data['city']['id'], 'sex': candidate.sex,
+                                                  'status': candidate.relation, 'age_from': user_age - 3,
+                                                  'age_to': user_age + 3})
+        # Заносим пользователя и кандидатов в users, потенциальные пары в user_candidate
+        # TODO insert data into DB
+        db_user = db.Users(user.user_id, user.data['screen_name'], user.data['first_name'], user.data['last_name'],
+                           user.data['sex'], user.data['city']['id'], user.data['bdate'], user.data.get['relation'],
+                           'https://vk.com/' + user.data['screen_name'])
+        db_user.insert()
+        # TODO cand in cand_list must be vkc.VkUser object with data from vkc.get_user_data()
+        for cand in cand_list:
+            db_cand = db.Users(cand.user_id, cand.data['screen_name'], cand.data['first_name'], cand.data['last_name'],
+                               cand.data['sex'], cand.data['city']['id'], cand.data['bdate'], cand.data.get['relation'],
+                               'https://vk.com/' + cand.data['screen_name'])
+            db_cand.insert()
+            db_pair = db.UserCandidate(db_user, db_cand)
+            db_pair.insert()
+        # TODO show candidate
+        request = event.message.get('payload')
+        if request:
+            btn = request.split('"')[-2]
+            if btn == 'Next':
+                # user_candidate.status = 1
+                pass
+            elif btn == 'Like':
+                # user_candidate.status = 2
+                pass
+            elif btn == 'BL':
+                # user_candidate.status = 3
+                pass
+            elif btn == 'Favorites':
+                # show favorites
+                pass
+            else:
+                write_msg(event.chat_id, 'Пожалуйста, выберите команду')
+        else:
+            write_msg(event.chat_id, 'Пожалуйста, выберите команду')
