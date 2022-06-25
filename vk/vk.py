@@ -122,6 +122,7 @@ search_params = {
               'books, music, relation, is_closed'
 }
 
+
 bdate = vk_user.data.get('bdate', None)
 #print(bdate)
 if bdate and len(bdate) > 7:
@@ -138,3 +139,47 @@ print(vk_candidates.get_users_search(**search_params))
 
 
 
+search_params = {
+    'sort': 0,
+    'has_photo': 1,
+    'offset': 8,
+    'count': 4,
+    'sex': 1,
+    'fields': 'photo_max, photo_id, bdate, home_town, status, city, interests,'
+              'books, music, relation, is_closed'
+}
+bdate = vk_user.data.get('bdate', None)
+#print(bdate)
+if bdate and len(bdate) > 7:
+     search_params['age_from'] = date.today().year - int(bdate[-4:]) - 4
+     search_params['age_to'] = date.today().year - int(bdate[-4:]) + 4
+
+if vk_user.data.get('city', None):
+     search_params['city'] = vk_user.data['city']['id']
+elif vk_user.data.get('home_town', None):
+     search_params['hometown'] = vk_user.data['home_town']
+
+
+print(vk_candidates.get_users_search(**search_params))
+search_params = {
+    'sort': 0,
+    'has_photo': 1,
+    'offset': 12,
+    'count': 4,
+    'sex': 1,
+    'fields': 'photo_max, photo_id, bdate, home_town, status, city, interests,'
+              'books, music, relation, is_closed'
+}
+bdate = vk_user.data.get('bdate', None)
+#print(bdate)
+if bdate and len(bdate) > 7:
+     search_params['age_from'] = date.today().year - int(bdate[-4:]) - 4
+     search_params['age_to'] = date.today().year - int(bdate[-4:]) + 4
+
+if vk_user.data.get('city', None):
+     search_params['city'] = vk_user.data['city']['id']
+elif vk_user.data.get('home_town', None):
+     search_params['hometown'] = vk_user.data['home_town']
+
+
+print(vk_candidates.get_users_search(**search_params))
