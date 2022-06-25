@@ -37,7 +37,8 @@ CREATE TABLE IF NOT EXISTS user_candidate (
 	id_user int REFERENCES users (id_user),
 	id_candidate int REFERENCES users (id_user),
 	id_status smallint REFERENCES status (id_status),
-	search_date timestamp
+	search_date timestamp,
+	UNIQUE (id_user, id_candidate)
 	);
 COMMENT ON TABLE user_candidate IS 'Таблица кандидатов';
 

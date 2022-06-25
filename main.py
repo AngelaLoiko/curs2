@@ -41,29 +41,35 @@ for event in longpoll.listen():
                            user.data['sex'], user.data['city']['id'], user.data['bdate'], user.data.get['relation'],
                            'https://vk.com/' + user.data['screen_name'])
         db_user.insert()
-        # TODO cand in cand_list must be vkc.VkUser object with data from vkc.get_user_data()
         for cand in cand_list:
+            # TODO cand in cand_list must be vkc.VkUser object with data from vkc.get_user_data()
             db_cand = db.Users(cand.user_id, cand.data['screen_name'], cand.data['first_name'], cand.data['last_name'],
                                cand.data['sex'], cand.data['city']['id'], cand.data['bdate'], cand.data.get['relation'],
                                'https://vk.com/' + cand.data['screen_name'])
             db_cand.insert()
             db_pair = db.UserCandidate(db_user, db_cand)
             db_pair.insert()
+
         # TODO show candidate
+        cand_to_show = db_user.select_pair()
+        # TODO get photos from vk; add them to table photo; show to user in attachment
+        photos_to_show = db.select_photos(cand_to_show.id_candidate)
+        write_msg(event.chat_id, "ПОКАЗЫВАЕМ КАНДИДАТА")
+
         request = event.message.get('payload')
         if request:
             btn = request.split('"')[-2]
             if btn == 'Next':
-                # user_candidate.status = 1
-                pass
+                # Меняем статус в "просмотрено"
+                cand_to_show.update(id_status=1)
             elif btn == 'Like':
-                # user_candidate.status = 2
-                pass
+                # Меняем статус в "избранное"
+                cand_to_show.update(id_status=2)
             elif btn == 'BL':
-                # user_candidate.status = 3
-                pass
+                # Меняем статус в "чс"
+                cand_to_show.update(id_status=3)
             elif btn == 'Favorites':
-                # show favorites
+                # TODO show favorites
                 pass
             else:
                 write_msg(event.chat_id, 'Пожалуйста, выберите команду')

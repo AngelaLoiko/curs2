@@ -2,7 +2,7 @@ import sqlalchemy as sa
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import Session
 from sqlalchemy.orm import relationship
-from datetime import date, datetime
+from datetime import datetime, timedelta
 
 
 Base = declarative_base()
@@ -22,16 +22,39 @@ def get_id_user(user: object) -> int:
     return user.id_user
 
 
-def get_id_user_from_vk(id_vk: int) -> int:
+def get_user_by_vk(id_vk: int) -> object:
     """
-    Получает id_user из users, если в передаваемом объекте в этом поле содержится id_vk
+    Получает объект user из users по имеющемуся id_vk
     :param id_vk:
-    :return: id_user
+    :return: user
     """
     with Session(engine) as session:
         stmt = sa.select(Users).where(Users.id_vk == id_vk)
         user = session.scalars(stmt).one()
-    return user.id_user
+    return user
+
+
+def get_user_by_id(id_user: int) -> object:
+    """
+    Получает объект user из users по имеющемуся id_user
+    :param id_user:
+    :return: user
+    """
+    with Session(engine) as session:
+        stmt = sa.select(Users).where(Users.id_user == id_user)
+        user = session.scalars(stmt).one()
+    return user
+
+
+def select_photos(id_user: int) -> list:
+    """
+    Выбирает до 3 фото с максимальным количеством лайков из таблицы photo для пользователя с id_user
+    :return: list of `photo` objects
+    """
+    with Session(engine) as session:
+        stmt = sa.select(Photo).where(Photo.id_user == id_user).limit(3)
+        photo_list = session.scalars(stmt)
+    return photo_list
 
 
 class Status(Base):
@@ -149,6 +172,31 @@ class Users(DataBase, Base):
             user.url = self.url
             session.commit()
 
+    def is_pair_exists(self) -> bool:
+        """
+        Проверяет наличие непоказанных кандидатов для пользователя
+        :return: True - есть кандидаты в БД; False - нет кандидатов
+        """
+        with Session(engine) as session:
+            if sa.exists().where(UserCandidate.id_user == self.id_user, UserCandidate.id_status == 0):
+                return True
+            else:
+                return False
+
+    def select_pair(self) -> object:
+        """
+        Выбирает кандидата из таблицы user_candidate (при наличии)
+        :return: объект UserCandidate
+        """
+        if self.is_pair_exists():
+            old_date = datetime.now() - timedelta(days=7)
+            with Session(engine) as session:
+                stmt = sa.select(UserCandidate).where(UserCandidate.id_user == self.id_user,
+                    sa.or_(UserCandidate.id_status == 0, sa.and_(UserCandidate.id_status == 1,
+                    UserCandidate.search_date < old_date.isoformat())))
+                new_pair = session.scalars(stmt).one()
+            return new_pair
+
 
 class UserCandidate(DataBase, Base):
     """
@@ -176,32 +224,21 @@ class UserCandidate(DataBase, Base):
         return f'UserCandidate(id={self.id_user_candidate}, pair={"-".join((self.id_user, self.id_candidate))}, ' \
                f'status={self.id_status}, searched={self.search_date})'
 
-    def update(self, candidate: object, id_status: int) -> None:
+    def update(self, id_status: int) -> None:
         """
-        Обновляет статус и дату модификации кандидата для текущего пользователя.
+        Обновляет статус и дату модификации текущей пары.
         """
         with Session(engine) as session:
-            stmt = sa.select(Users).where(Users.id_vk == self.id_vk)
-            user = session.scalars(stmt).one()
-            stmt = sa.select(Users).where(Users.id_vk == candidate.id_vk)
-            cand = session.scalars(stmt).one()
-            stmt = sa.select(UserCandidate).where(UserCandidate.id_user == user.id_user, UserCandidate.id_candidate ==
-                                                  cand.id_user)
+            # stmt = sa.select(Users).where(Users.id_vk == self.id_vk)
+            # user = session.scalars(stmt).one()
+            # stmt = sa.select(Users).where(Users.id_vk == candidate.id_vk)
+            # cand = session.scalars(stmt).one()
+            stmt = sa.select(UserCandidate).where(UserCandidate.id_user == self.id_user, UserCandidate.id_candidate ==
+                                                  self.id_candidate)
             rec = session.scalars(stmt).one()
             rec.id_status = id_status
             rec.search_date = datetime.now().isoformat()
             session.commit()
-
-    def is_exists(self) -> bool:
-        """
-        Проверяет наличие непоказанных кандидатов для пользователя
-        :return: True - есть кандидаты в БД; False - нет кандидатов
-        """
-        with Session(engine) as session:
-            if sa.exists().where(UserCandidate.id_user == self.id_user, UserCandidate.id_status == 0):
-                return True
-            else:
-                return False
 
 
 class Photo(DataBase, Base):
