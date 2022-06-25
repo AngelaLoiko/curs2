@@ -271,3 +271,17 @@ class ReqParams(DataBase, Base):
     def __repr__(self):
         return f'ReqParams(id={self.id_user}: sex={self.id_sex}, age from {self.age_from} to {self.age_to}, ' \
                f'city={self.id_city}, relation={self.id_relation})'
+
+
+me = Users(id_vk=49192126, id_vk_str='id49192126', first_name='Юрий', last_name='Головченко', id_sex=2, id_city=312,
+           bdate=date(1985, 5, 5), id_relation=4, url='https://vk.com/id49192126')
+# me.update()
+# me.insert()
+# pair = UserCandidate(user=me, candidate=notme)
+# girl = Users(id_vk=46873844, id_vk_str='id46873844', first_name='Татьяна', last_name='Красновская', id_sex=1,
+#              id_city=312, bdate=date(1984, 7, 31), id_relation=4, url='https://vk.com/id46873844')
+# girl.insert()
+# pair = UserCandidate(me, girl)
+# pair.insert()
+# rq = ReqParams(me, 1, 26, 36, 31, 1)
+# rq.insert()
