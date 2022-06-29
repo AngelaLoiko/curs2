@@ -3,12 +3,11 @@ import vk_api
 import traceback
 from vk_api.longpoll import VkLongPoll, VkEventType
 from vk_api.keyboard import VkKeyboard, VkKeyboardColor
-
+import db.base_db as dbo
 from random import randrange, shuffle
 
 from util import pilot
 from vk_inter import vkqueries
-#from util.pilot import MessageEventData
 from datetime import date
 
 class VKBot:
@@ -18,7 +17,8 @@ class VKBot:
         self.vk = None
         self.max_Candidates = settings.user_record['max_Candidates']
         self.offset = 0
-
+        self.current_candidate = 0
+        self.candidate_list = None
         try:
             self.vk = vk_api.VkApi(token=self.token_vk)
             self.vk_user = self.vk.get_api()
@@ -31,23 +31,7 @@ class VKBot:
             pilot.interrupt('Бот не авторизовался, запуск невозможен!')
 
 # todo нужна такая структура из базы данных
-        self.vk_dic = {
-                  "sex": {
-                      "1": "женский",
-                      "2": "мужской"
-                   },
-                  "relation": {
-                       "1": "не женат/не замужем",
-                       "2": "есть друг/есть подруга",
-                       "3": "помолвлен/помолвлена",
-                       "4": "женат/замужем",
-                       "5": "всё сложно",
-                       "6": "в активном поиске",
-                       "7": "влюблён/влюблена",
-                       "8": "в гражданском браке"
-                   }
-                 }
-
+        self.vk_dic = dbo.get_dic()
         self.vk_candidates = vkqueries.VKCandidates(self.vk_user, self.vk_dic)
         self.vk_send_mess = vkqueries.VKSendMess(self.vk_group)
 
@@ -86,7 +70,10 @@ class VKBot:
             elif new_event.text.lower() in ['начать поиск']:
                 self.key_seach()
             elif new_event.text.lower() in ['следующий кандидат']:
-                self.key_next()
+                if self.candidate_list == None:
+                    self.key_seach()
+                else:
+                    self.key_next()
             elif new_event.text.lower() in ['добавить в избранное']:
                 self.key_add_to_favor()
             elif new_event.text.lower() in ['посмотреть избранных кандидатов']:
@@ -110,12 +97,15 @@ class VKBot:
         self.vk.method('messages.send', values)
 
     def key_next(self, keyboard=None):
+
         self.current_candidate += 1
         if self.current_candidate < self.max_Candidates:
             self.get_current_candidate()
+            self.offset += 1
+
         if self.current_candidate == self.max_Candidates:
-            self.current_candidate = 0
-            self.offset += self.max_Candidates
+            #self.current_candidate = 0
+            #self.offset += self.max_Candidates
             self.key_seach()
 
 
@@ -145,6 +135,7 @@ class VKBot:
         search_params['sex'] = 3 - self.vk_us.data['sex']
         self.candidate_list = self.vk_candidates.get_users_search(**search_params)
         self.current_candidate = 0
+        self.offset += 1
         self.get_current_candidate()
 
     def get_current_candidate(self):

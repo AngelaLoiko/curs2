@@ -14,7 +14,6 @@ class MessageEventData:
     def __repr__(self):
         return self.text
 
-
 def get_normalize_set(string_: str) -> frozenset:
     """
     Нормализация строки к одному общему виду, разбиения на отдельные слова.
@@ -26,6 +25,11 @@ def get_normalize_set(string_: str) -> frozenset:
     return set_of_words
 
 def read_json(file_name: str) -> dict:
+    """
+    Функция чтения json-файла.
+    :param file_name: имя файла для чтения;
+    :return: словарь, или ОШИБКУ в случае отсутствия файла
+    """
     try:
         with open(file_name, encoding='utf-8') as f:
             return json.load(f)

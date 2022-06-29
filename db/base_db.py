@@ -4,10 +4,29 @@ from sqlalchemy.orm import Session
 from sqlalchemy.orm import relationship
 from datetime import date, datetime
 
-
+is_use_database = False
 Base = declarative_base()
-with open('../tokens/database.txt') as conf:
-    engine = sa.create_engine(conf.read(), echo=True, future=True)
+if is_use_database:
+    with open('../tokens/database.txt') as conf:
+        engine = sa.create_engine(conf.read(), echo=True, future=True)
+
+def get_dic() -> dict:
+    return {
+                  "sex": {
+                      "1": "женский",
+                      "2": "мужской"
+                   },
+                  "relation": {
+                       "1": "не женат/не замужем",
+                       "2": "есть друг/есть подруга",
+                       "3": "помолвлен/помолвлена",
+                       "4": "женат/замужем",
+                       "5": "всё сложно",
+                       "6": "в активном поиске",
+                       "7": "влюблён/влюблена",
+                       "8": "в гражданском браке"
+                   }
+                 }
 
 
 def get_id_user(user: object) -> int:
