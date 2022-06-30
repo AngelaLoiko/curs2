@@ -1,5 +1,6 @@
 import json
 import re
+import hues
 
 class MessageEventData:
 
@@ -14,6 +15,7 @@ class MessageEventData:
     def __repr__(self):
         return self.text
 
+
 def get_normalize_set(string_: str) -> frozenset:
     """
     Нормализация строки к одному общему виду, разбиения на отдельные слова.
@@ -23,6 +25,7 @@ def get_normalize_set(string_: str) -> frozenset:
     new_string = string_.lower()
     set_of_words = frozenset(re.findall(r'[a-zA-Zа-яА-ЯЁё]+', new_string))
     return set_of_words
+
 
 def read_json(file_name: str) -> dict:
     """
@@ -37,4 +40,12 @@ def read_json(file_name: str) -> dict:
     except Exception as err:
         print(f'ОШИБКА загрузки необходимых сведений: {err}')
         print(f'Проверьте наличие данных в файле - {file_name}.')
+
+
+def interrupt(args):
+
+#  hues.error(f'Ошибка: {args}')
+    hues.error(f'{args}')
+    exit()
+
 

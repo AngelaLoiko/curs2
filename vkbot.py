@@ -12,13 +12,20 @@ from datetime import date
 
 class VKBot:
     def __init__(self):
+        if not (settings.user_record['TOKEN_VK'] or settings.group_record['TOKEN_GROUP']):
+            pilot.interrupt('Заполните параметры "TOKEN_VK" и "TOKEN_GROUP" в настроечном файле settings.py')
         self.token_vk = settings.user_record['TOKEN_VK']
         self.token_group = settings.group_record['TOKEN_GROUP']
+        self.younger = settings.user_record['younger']
+        self.older = settings.user_record['older']
         self.vk = None
+        self.vk_user = None
+        self.vk_group = None
         self.max_Candidates = settings.user_record['max_Candidates']
         self.offset = 0
         self.current_candidate = 0
         self.candidate_list = None
+        self.elected_user = []
         try:
             self.vk = vk_api.VkApi(token=self.token_vk)
             self.vk_user = self.vk.get_api()
@@ -30,7 +37,6 @@ class VKBot:
         if not (self.vk_group and self.vk_user):
             pilot.interrupt('Бот не авторизовался, запуск невозможен!')
 
-# todo нужна такая структура из базы данных
         self.vk_dic = dbo.get_dic()
         self.vk_candidates = vkqueries.VKCandidates(self.vk_user, self.vk_dic)
         self.vk_send_mess = vkqueries.VKSendMess(self.vk_group)
@@ -46,6 +52,8 @@ class VKBot:
             self.id_user = new_event.user_id
             self.vk_us = vkqueries.VkUser(self.vk_user, self.id_user)
             self.name_user = self.vk_us.get_user_data()
+            if not self.name_user:
+                pilot.interrupt('Не удалось выполнить запрос к vk_api, возможно TOKEN_VK истёк. \n Заполните действительный TOKEN_VK в файле settings.py')
             uid = new_event.user_id  # id отправителя
             msg_id = new_event.message_id  # id сообщения
             dt = new_event.timestamp  # время сообщения
@@ -53,7 +61,7 @@ class VKBot:
             #contact_id = pilot.contact_id_from_dict(new_event.extra_values)  # id контакта вызова кнопки
             #event_data = MessageEventData(self.id_user, msg_id, dt, msg, contact_id)
 
-            if new_event.text.lower() in ['привет', 'hello', 'hi', 'здравствуй', 'здравствуйте']:
+            if new_event.text.lower() in ['привет', 'hello', 'hi', 'hi!', 'здравствуй', 'здравствуйте', 'привет!', 'здорово!', 'здорово']:
                 keyboard = VkKeyboard()
                 buttons = ['НАЧАТЬ ПОИСК', 'СЛЕДУЮЩИЙ КАНДИДАТ', 'ДОБАВИТЬ В ИЗБРАННОЕ', 'ПОСМОТРЕТЬ ИЗБРАННЫХ КАНДИДАТОВ']
                 buttons_color = [VkKeyboardColor.PRIMARY, VkKeyboardColor.POSITIVE, VkKeyboardColor.NEGATIVE,
@@ -81,8 +89,48 @@ class VKBot:
             else:
                 self.key_unnamed()
 
+    def key_add_to_favor(self, keyboard=None):
+        if self.candidate_list:
+            first_name = self.candidate['first_name']
+            last_name = self.candidate['last_name']
+            self.candidate['elected'] = True
+            if next((x for x in self.elected_user if x['vk_id'] == self.candidate['vk_id']), None):
+                message = f'Пользователь {first_name} {last_name} уже был добавлен в "Избранное" ранее.'
+            else:
+                self.elected_user.append(self.candidate)
+                message = f'Пользователь {first_name} {last_name} добавлен в "Избранное".'
+        else:
+            message = f'Сначала запустите поиск кандидатов!'
+        self.vk.method('messages.send',
+                            {'user_id': self.id_user, 'message': message, 'random_id': randrange(10 ** 7)})
+
+    def key_watch_favor(self, keyboard=None):
+        message = 'Список избранных:\n'
+        number_user = 0
+        for elected_user in self.elected_user:
+            number_user += 1
+            message = message + f' {number_user}. {elected_user["first_name"]} {elected_user["last_name"]} https://vk.com/id{elected_user["vk_id"]}\n'
+
+        self.vk.method('messages.send',
+                           {'user_id': self.id_user, 'message': message, 'random_id': randrange(10 ** 7)})
+
+    def key_unnamed(self, keyboard=None):
+        message = f'Не понимаю Вас, но давайте попробуем, {self.name_user}!\n\nЯ помогу Вам найти друга, на основании вашего местоположение, возраста и статуса и покажу его ТОП-3 фото.\
+                   Нажмите кнопку "НАЧАТЬ ПОИСК"'
+
+        values = {
+            'user_id': self.id_user,
+            'message': message,
+            'random_id': randrange(10 ** 7)
+        }
+
+        if keyboard:
+            values['keyboard'] = keyboard.get_keyboard()
+
+        self.vk.method('messages.send', values)
+
     def key_start(self, keyboard=None):
-        message = f'Добрый день, {self.name_user}!\nЯ помогу Вам найти друга, на основании вашего местоположение, возраста и статуса и покажу его ТОП-3 фото.\
+        message = f'Добрый день, {self.name_user}!\n\nЯ помогу Вам найти друга, на основании вашего местоположение, возраста и статуса и покажу его ТОП-3 фото.\
                    Нажмите кнопку "НАЧАТЬ ПОИСК"'
 
         values = {
@@ -124,8 +172,8 @@ class VKBot:
         city = self.vk_us.data['city']['id']
         # print(bdate)
         if bdate and len(bdate) > 7:
-            search_params['age_from'] = date.today().year - int(bdate[-4:]) - 4
-            search_params['age_to'] = date.today().year - int(bdate[-4:]) + 4
+            search_params['age_from'] = date.today().year - int(bdate[-4:]) - self.younger
+            search_params['age_to'] = date.today().year - int(bdate[-4:]) + self.older
 
         if self.vk_us.data.get('city', None):
             search_params['city'] = city
@@ -175,12 +223,11 @@ class VKBot:
 
     def startbot(self):
         """Главная функция запуска бота - ожидание новых событий (сообщений)"""
-        self.long_poll = VkLongPoll(vk=self.vk)
+        try:
+            self.long_poll = VkLongPoll(vk=self.vk)
+        except Exception as E:
+            pilot.interrupt(f'Бот не запустился. VkLongPoll не удалось создать. \n {E}')
 
-        if not self.long_poll:
-            pilot.interrupt('Не удалось получить значения Long Poll сервера!')
-        bots = {}
         while True:
             for event in self.long_poll.listen():
                 self.check_event(event)
-
