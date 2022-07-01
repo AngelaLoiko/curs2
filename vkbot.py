@@ -74,8 +74,7 @@ class VKBot:
 
                 self.key_start(keyboard)
 
-
-            elif new_event.text.lower() in ['начать поиск']:
+            elif 'начать поиск' in new_event.text.lower():
                 self.key_seach()
             elif new_event.text.lower() in ['следующий кандидат']:
                 if self.candidate_list == None:
@@ -119,7 +118,7 @@ class VKBot:
                    Нажмите кнопку "НАЧАТЬ ПОИСК"'
 
         values = {
-            'user_id': self.id_user,
+            'peer_id': self.id_user,
             'message': message,
             'random_id': randrange(10 ** 7)
         }
@@ -134,7 +133,7 @@ class VKBot:
                    Нажмите кнопку "НАЧАТЬ ПОИСК"'
 
         values = {
-            'user_id': self.id_user,
+            'peer_id': '2000000001',
             'message': message,
             'random_id': randrange(10 ** 7)
         }
@@ -182,7 +181,14 @@ class VKBot:
             search_params['hometown'] = self.vk_us.data.get['home_town']
         search_params['sex'] = 3 - self.vk_us.data['sex']
         self.candidate_list = self.vk_candidates.get_users_search(**search_params)
+        # TODO insert into db user and candidates
+        db_user = dbo.Users(self.vk_us.user_id, self.vk_us.data['screen_name'], self.vk_us.data['first_name'],
+                            self.vk_us.data['last_name'], self.vk_us.data['sex'], self.vk_us.data['city']['id'],
+                            self.vk_us.data['bdate'], self.vk_us.data['relation'],
+                            'https://vk.com/' + self.vk_us.data['screen_name'])
+        db_user.insert()
         self.current_candidate = 0
+        # db_cand = dbo.Users(self.candidate_list['items'][self.current_candidate])
         self.offset += 1
         self.get_current_candidate()
 
