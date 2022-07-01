@@ -20,7 +20,7 @@ COMMENT ON TABLE sex IS 'Справочник полов';
 
 CREATE TABLE IF NOT EXISTS users (
 	id_user serial PRIMARY KEY,
-	id_vk int NOT NULL,
+	id_vk int UNIQUE NOT NULL,
 	id_vk_str varchar(80) NOT NULL,
 	first_name varchar(80),
 	last_name varchar(80),

@@ -4,6 +4,7 @@ import traceback
 from vk_api.longpoll import VkLongPoll, VkEventType
 from vk_api.keyboard import VkKeyboard, VkKeyboardColor
 import db.base_db as dbo
+from sqlalchemy.orm.exc import DetachedInstanceError, NoResultFound, MultipleResultsFound
 from random import randrange, shuffle
 
 from util import pilot
@@ -108,7 +109,7 @@ class VKBot:
         number_user = 0
         for elected_user in self.elected_user:
             number_user += 1
-            message = message + f' {number_user}. {elected_user["first_name"]} {elected_user["last_name"]} https://vk.com/id{elected_user["vk_id"]}\n'
+            message = message + f'{number_user:2}. {elected_user["first_name"]} {elected_user["last_name"]} https://vk.com/id{elected_user["vk_id"]}\n'
 
         self.vk.method('messages.send',
                            {'user_id': self.id_user, 'message': message, 'random_id': randrange(10 ** 7)})
@@ -165,7 +166,7 @@ class VKBot:
             'offset': self.offset,
             'count': self.max_Candidates,
             'sex': 2,
-            'fields': 'photo_max, photo_id, sex, bdate, home_town, status, city, relation'
+            'fields': 'photo_max, photo_id, sex, bdate, home_town, status, city, relation, screen_name'
         }
         bdate = self.vk_us.data.get('bdate', None)
         city = self.vk_us.data['city']['id']
@@ -181,27 +182,66 @@ class VKBot:
             search_params['hometown'] = self.vk_us.data.get['home_town']
         search_params['sex'] = 3 - self.vk_us.data['sex']
         self.candidate_list = self.vk_candidates.get_users_search(**search_params)
-        # TODO insert into db user and candidates
-        db_user = dbo.Users(self.vk_us.user_id, self.vk_us.data['screen_name'], self.vk_us.data['first_name'],
-                            self.vk_us.data['last_name'], self.vk_us.data['sex'], self.vk_us.data['city']['id'],
-                            self.vk_us.data['bdate'], self.vk_us.data['relation'],
+
+        # inserting into USERS table current user and candidates
+        db_user = dbo.Users(self.vk_us.user_id,
+                            self.vk_us.data['screen_name'],
+                            self.vk_us.data['first_name'],
+                            self.vk_us.data['last_name'],
+                            self.vk_us.data['sex'],
+                            self.vk_us.data['city']['id'],
+                            self.vk_us.data['bdate'],
+                            self.vk_us.data['relation'],
                             'https://vk.com/' + self.vk_us.data['screen_name'])
-        db_user.insert()
+        session = dbo.session_start()
+        try:
+            db_user.insert(session=session)
+        except DetachedInstanceError as E:
+            pilot.interrupt(f'Ошибка вставки пользователя в USERS.\n{E}')
+        for candidate in self.candidate_list['items']:
+            db_cand = dbo.Users(candidate['id'],
+                                candidate['screen_name'],
+                                candidate['first_name'],
+                                candidate['last_name'],
+                                candidate['sex'],
+                                candidate['city']['id'],
+                                candidate['bdate'],
+                                candidate['relation'],
+                                'https://vk.com/' + candidate['screen_name'])
+            try:
+                db_cand.insert(session=session)
+                session.commit()
+                db_pair = dbo.UserCandidate(db_user, db_cand)
+                db_pair.insert(session=session)
+            except DetachedInstanceError as E:
+                pilot.interrupt(f'Ошибка вставки кандидата в USERS или пары в USER_CANDIDATE. user={db_user.id_user},'
+                                f'candidate={db_cand.id_user}\n{E}')
+            except NoResultFound as E:
+                pilot.interrupt(f'Нет нужной записи в таблице USERS. user={db_user.id_user}, '
+                                f'candidate={db_cand.id_user}\n{E}')
+            except MultipleResultsFound as E:
+                pilot.interrupt(f'Более одной записи в таблице USERS. user={db_user.id_user}, '
+                                f'candidate={db_cand.id_user}\n{E}')
+        dbo.session_end(session)
+
         self.current_candidate = 0
-        # db_cand = dbo.Users(self.candidate_list['items'][self.current_candidate])
         self.offset += 1
         self.get_current_candidate()
 
     def get_current_candidate(self):
-
+        # session = dbo.session_start()
+        # db_user = dbo.get_user_by_vk(self.id_user)
+        # rec_cand = db_user.select_pair()
         rec_cand = self.candidate_list['items'][self.current_candidate]
-        message = f'{rec_cand["first_name"]} {rec_cand["last_name"]}\nhttps://vk.com/id{rec_cand["id"]}'
-        dict_photos = None
-        try:
-            dict_photos = self.vk_candidates._get_user_photos(rec_cand['id'])
-        except Exception as Error:
-            if "This profile is private" in traceback.format_exc():
-                message += f'\nВ этом аккаунте фотографии скрыты.'
+        message = f'{rec_cand.first_name} {rec_cand.last_name}\n{rec_cand.url}'
+        dict_photos = None  # dbo.select_photos(db_user.id_user)
+        # dbo.session_end(session)
+        if not len(dict_photos):
+            try:
+                dict_photos = self.vk_candidates._get_user_photos(rec_cand['id'])
+            except Exception as Error:
+                if "This profile is private" in traceback.format_exc():
+                    message += f'\nВ этом аккаунте фотографии скрыты.'
 
         self.candidate = {
             'first_name': rec_cand["first_name"],
@@ -221,11 +261,10 @@ class VKBot:
         params['message_text'] = message
 
         # Формирование адресата
-        params['receiver_user_id'] = self.id_user
+        params['receiver_user_id'] = '2000000001'  # peer_id
 
         # Отправка сообщения
         self.vk_send_mess.send_message(**params)
-
 
     def startbot(self):
         """Главная функция запуска бота - ожидание новых событий (сообщений)"""

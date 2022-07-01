@@ -2,13 +2,15 @@ import sqlalchemy as sa
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import Session
 from sqlalchemy.orm import relationship
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 
-is_use_database = True
+import settings
+
 Base = declarative_base()
-if is_use_database:
+if settings.params['use_database']:
     with open('tokens/database.txt') as conf:
         engine = sa.create_engine(conf.read(), echo=True, future=True)
+
 
 def get_dic() -> dict:
     return {
@@ -76,6 +78,15 @@ def select_photos(id_user: int) -> list:
     return photo_list
 
 
+def session_start():
+    return Session(engine)
+
+
+def session_end(session):
+    session.commit()
+    session.close()
+
+
 class Status(Base):
     """
     Справочник статуса кандидатов. 0 - не просмотрено, 1 - просмотрено, 2 - в избранном, 3 - в чёрном списке.
@@ -122,14 +133,17 @@ class Sex(Base):
 
 class DataBase:
     """ Базовый класс для взаимодействия с БД """
-    def insert(self):
+    def insert(self, session=None):
         """
         Вставка записи в таблицу
         :return: None
         """
-        with Session(engine) as session:
+        if session:
             session.add(self)
-            session.commit()
+        else:
+            with Session(engine) as session:
+                session.add(self)
+                session.commit()
         return None
 
 
@@ -207,14 +221,16 @@ class Users(DataBase, Base):
         Выбирает кандидата из таблицы user_candidate (при наличии)
         :return: объект UserCandidate
         """
-        if self.is_pair_exists():
-            old_date = datetime.now() - timedelta(days=7)
-            with Session(engine) as session:
+        with Session(engine) as session:
+            if self.is_pair_exists():
+                old_date = datetime.now() - timedelta(days=7)
                 stmt = sa.select(UserCandidate).where(UserCandidate.id_user == self.id_user,
                                  sa.or_(UserCandidate.id_status == 0, sa.and_(UserCandidate.id_status == 1,
                                  UserCandidate.search_date < old_date.isoformat())))
                 new_pair = session.scalars(stmt).one()
-            return new_pair
+                return new_pair
+            else:
+                return None
 
 
 class UserCandidate(DataBase, Base):
