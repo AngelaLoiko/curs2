@@ -133,7 +133,7 @@ class VKSendMess:
 
                 # Параметры сообщения
                 params_message = {
-                    'user_id': receiver_user_id,
+                    'peer_id': receiver_user_id,
                     'message': message_text,
                     #'keyboard': keyboard,
                     'random_id': get_random_id()
