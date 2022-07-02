@@ -43,39 +43,54 @@ def get_id_user(user: object) -> int:
     return user.id_user
 
 
-def get_user_by_vk(id_vk: int) -> object:
+def get_user_by_vk(id_vk: int, session=None) -> object:
     """
     Получает объект user из users по имеющемуся id_vk
+    :param session:
     :param id_vk:
     :return: user
     """
-    with Session(engine) as session:
+    if session:
         stmt = sa.select(Users).where(Users.id_vk == id_vk)
         user = session.scalars(stmt).one()
+    else:
+        with Session(engine) as session:
+            stmt = sa.select(Users).where(Users.id_vk == id_vk)
+            user = session.scalars(stmt).one()
     return user
 
 
-def get_user_by_id(id_user: int) -> object:
+def get_user_by_id(id_user: int, session=None) -> object:
     """
     Получает объект user из users по имеющемуся id_user
+    :param session:
     :param id_user:
     :return: user
     """
-    with Session(engine) as session:
+    if session:
         stmt = sa.select(Users).where(Users.id_user == id_user)
         user = session.scalars(stmt).one()
+    else:
+        with Session(engine) as session:
+            stmt = sa.select(Users).where(Users.id_user == id_user)
+            user = session.scalars(stmt).one()
     return user
 
 
-def select_photos(id_user: int) -> list:
+def select_photos(id_user: int, session=None) -> dict:
     """
     Выбирает до 3 фото с максимальным количеством лайков из таблицы photo для пользователя с id_user
     :return: list of `photo` objects
     """
-    with Session(engine) as session:
+    if session:
         stmt = sa.select(Photo).where(Photo.id_user == id_user).limit(3)
-        photo_list = session.scalars(stmt)
-    return photo_list
+        photo_list = session.scalars(stmt).all()
+        res_dict = {'photos': []}
+        for photo in photo_list:
+            res_dict['photos'].append([{'photo_id': photo[2], 'owner_id': photo[1], 'likes': photo[3]}])
+        return res_dict
+    else:
+        return {}
 
 
 def session_start():
@@ -85,6 +100,21 @@ def session_start():
 def session_end(session):
     session.commit()
     session.close()
+
+
+def pair_update(id_vk_user: int, id_vk_cand: int, new_status: int) -> None:
+    """
+    Обновление статуса пары
+    :param id_vk_user:
+    :param id_vk_cand:
+    :param new_status:
+    :return:
+    """
+    with Session(engine) as session:
+        db_cand = get_user_by_vk(id_vk_user, session=session)
+        db_user = get_user_by_vk(id_vk_cand, session=session)
+        db_pair = UserCandidate.find_pair(db_user.id_user, db_cand.id_user, session=session)
+        db_pair.update(id_status=new_status, session=session)
 
 
 class Status(Base):
@@ -205,32 +235,33 @@ class Users(DataBase, Base):
             user.url = self.url
             session.commit()
 
-    def is_pair_exists(self) -> bool:
+    def is_pair_exists(self, session=None) -> bool:
         """
         Проверяет наличие непоказанных кандидатов для пользователя
         :return: True - есть кандидаты в БД; False - нет кандидатов
         """
-        with Session(engine) as session:
+        if session:
             if sa.exists().where(UserCandidate.id_user == self.id_user, UserCandidate.id_status == 0):
                 return True
             else:
                 return False
 
-    def select_pair(self) -> object:
+    def select_pair(self, session=None) -> object:
         """
         Выбирает кандидата из таблицы user_candidate (при наличии)
         :return: объект UserCandidate
         """
-        with Session(engine) as session:
-            if self.is_pair_exists():
-                old_date = datetime.now() - timedelta(days=7)
-                stmt = sa.select(UserCandidate).where(UserCandidate.id_user == self.id_user,
-                                 sa.or_(UserCandidate.id_status == 0, sa.and_(UserCandidate.id_status == 1,
-                                 UserCandidate.search_date < old_date.isoformat())))
-                new_pair = session.scalars(stmt).one()
-                return new_pair
-            else:
-                return None
+        if session:
+            # if self.is_pair_exists(session=session):
+            old_date = datetime.now() - timedelta(days=7)
+            stmt = sa.select(UserCandidate).where(UserCandidate.id_user == self.id_user,
+                                                  sa.or_(UserCandidate.id_status == 0,
+                                                         sa.and_(UserCandidate.id_status == 1,
+                                                         UserCandidate.search_date < old_date.isoformat())))
+            new_pair = session.scalars(stmt).first()
+            return new_pair
+        else:
+            return None
 
 
 class UserCandidate(DataBase, Base):
@@ -256,21 +287,37 @@ class UserCandidate(DataBase, Base):
         self.search_date = datetime.now().isoformat()
 
     def __repr__(self):
-        return f'UserCandidate(id={self.id_user_candidate}, pair={"-".join((self.id_user, self.id_candidate))}, ' \
+        return f'UserCandidate(id={self.id_user_candidate}, pair={self.id_user}-{self.id_candidate}, ' \
                f'status={self.id_status}, searched={self.search_date})'
 
-    def update(self, id_status: int) -> None:
+    def find_pair(self, id_user, id_candidate, session=None):
+        """
+        Находит пару по двум идентификаторам
+        :param id_user:
+        :param id_candidate:
+        :param session:
+        :return:
+        """
+        if session:
+            stmt = sa.select(UserCandidate).where(UserCandidate.id_user == id_user,
+                                                  UserCandidate.id_candidate == id_candidate)
+            pair = session.scalars(stmt).one_or_none()
+            return pair
+        else:
+            with Session(engine) as session:
+                stmt = sa.select(UserCandidate).where(UserCandidate.id_user == id_user,
+                                                      UserCandidate.id_candidate == id_candidate)
+                pair = session.scalars(stmt).one_or_none()
+                return pair
+
+    def update(self, id_status: int, session=None) -> None:
         """
         Обновляет статус и дату модификации текущей пары.
         """
-        with Session(engine) as session:
-            # stmt = sa.select(Users).where(Users.id_vk == self.id_vk)
-            # user = session.scalars(stmt).one()
-            # stmt = sa.select(Users).where(Users.id_vk == candidate.id_vk)
-            # cand = session.scalars(stmt).one()
+        if session:
             stmt = sa.select(UserCandidate).where(UserCandidate.id_user == self.id_user, UserCandidate.id_candidate ==
                                                   self.id_candidate)
-            rec = session.scalars(stmt).one()
+            rec = session.scalars(stmt).one_or_none()
             rec.id_status = id_status
             rec.search_date = datetime.now().isoformat()
             session.commit()
@@ -278,26 +325,26 @@ class UserCandidate(DataBase, Base):
 
 class Photo(DataBase, Base):
     """
-    Таблица фотографий пользователя. Содержит идентификар пользователя из таблицы users, ссылку на фото, количество
-    лайков. Связь N-1 с users.
+    Таблица фотографий пользователя. Содержит идентификар пользователя из таблицы users, идентификатор фото в ВК,
+    количество лайков. Связь N-1 с users.
     """
     __tablename__ = 'photo'
     id_photo = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
     id_user = sa.Column(sa.Integer, sa.ForeignKey('users.id_user'))
-    url = sa.Column(sa.String(160))
-    likes_count = sa.Column(sa.Integer)
+    id_photo_vk = sa.Column(sa.Integer)
+    likes_count = sa.Column(sa.SmallInteger)
 
     users = relationship('Users')  # , back_populates='photo')
 
-    def __init__(self, user, url, likes_count):
+    def __init__(self, id_vk, id_photo_vk, likes_count):
         """ Инициализация объекта Photo """
-        self.id_user = get_id_user(user)
-        self.url = url
+        self.id_user = get_id_user(get_user_by_vk(id_vk))
+        self.id_photo_vk = id_photo_vk
         self.likes_count = likes_count
 
     def __repr__(self):
-        return f'Photo(id={self.id_photo}, user={self.id_user}, likes={self.likes_count}, liked={self.liked}, ' \
-               f'url={self.url})'
+        return f'Photo(id={self.id_photo}, user={self.id_user}, likes={self.likes_count}, ' \
+               f'id_photo={self.id_photo_vk})'
 
     def update(self, user: object) -> None:
         """
