@@ -2,9 +2,11 @@ import settings
 import vk_api
 import traceback
 from vk_api.longpoll import VkLongPoll, VkEventType
+from vk_api.bot_longpoll import VkBotLongPoll, VkBotEventType
 from vk_api.keyboard import VkKeyboard, VkKeyboardColor
 import db.base_db as dbo
 from random import randrange, shuffle
+import db.base_db as db
 
 from util import pilot
 from vk_inter import vkqueries
@@ -49,6 +51,7 @@ class VKBot:
     def check_event(self, new_event):
         # Получено новое сообщение от пользователя. Определяем пользователя и получаем его инфо
         if new_event.type == VkEventType.MESSAGE_NEW and new_event.to_me and new_event.text:
+#        if new_event.type == VkBotEventType.MESSAGE_NEW and new_event.to_me and new_event.text:
             self.id_user = new_event.user_id
             self.vk_us = vkqueries.VkUser(self.vk_user, self.id_user)
             self.name_user = self.vk_us.get_user_data()
@@ -225,6 +228,7 @@ class VKBot:
         """Главная функция запуска бота - ожидание новых событий (сообщений)"""
         try:
             self.long_poll = VkLongPoll(vk=self.vk)
+            #self.long_poll = VkBotLongPoll(vk=self.vk, group_id=213985884)
         except Exception as E:
             pilot.interrupt(f'Бот не запустился. VkLongPoll не удалось создать. \n {E}')
 
