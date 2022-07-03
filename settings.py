@@ -1,5 +1,5 @@
 user_record = {
-    "TOKEN_VK": "vk1.a.rteB_Rt8YrttlNN3EKo9D_UX7z9723QiF-EUBV3sprCU7xSIfPIcZfloXvZHjoolVTlbascLqFE-vq5gEB5nskgXokpPbhRkWbHmdIjSIvJtcK7j8wxdbs5Z3mCgptvb8E7fasNfaiVPAFpHCC_ojyIOGACy-XHCxgt6n_vJewV8eFvGvsOfQQcyndBgCykX",
+    "TOKEN_VK": "vk1.a.KxQRYiq2WfqWMh90Hd31OIHIZ9MQtYI_01Uv8vVHSp6xqcrfrldl0MEh9MruAfxNNL_iP3rAQxRg0Nbrt8BgXiuIgk9PXjBgOVjQb9geVQhErc59Jaot2I1SVxaZZ3l_EMmQYbAcbZhFq-Oy6WWTuJcyqg21Sm03HA-dtkUVbocgJpnA1OWEFQ9HhJKFh2Fb",
     "version_api_vk": "5.131",
     "max_Candidates": 5,
     "older": 2,  # ищу кандидатов старше на столько лет
@@ -11,5 +11,6 @@ group_record = {
 }
 
 params = {
-    'use_database': True
+    'use_database': True,
+    'DBCONNECT': 'postgresql+psycopg2://postgres:dbadmin@localhost/postgres'
 }
