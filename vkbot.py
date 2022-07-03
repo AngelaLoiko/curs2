@@ -6,12 +6,14 @@ from vk_api.bot_longpoll import VkBotLongPoll, VkBotEventType
 from vk_api.keyboard import VkKeyboard, VkKeyboardColor
 import db.base_db as dbo
 from sqlalchemy.orm.exc import DetachedInstanceError, NoResultFound, MultipleResultsFound
+from sqlalchemy.exc import IntegrityError
 from random import randrange, shuffle
 import db.base_db as db
 
 from util import pilot
 from vk_inter import vkqueries
 from datetime import date
+
 
 class VKBot:
     def __init__(self):
@@ -62,13 +64,15 @@ class VKBot:
             msg_id = new_event.message_id  # id сообщения
             dt = new_event.timestamp  # время сообщения
             msg = new_event.text  # текст сообщения
-            #contact_id = pilot.contact_id_from_dict(new_event.extra_values)  # id контакта вызова кнопки
-            #event_data = MessageEventData(self.id_user, msg_id, dt, msg, contact_id)
+            # contact_id = pilot.contact_id_from_dict(new_event.extra_values)  # id контакта вызова кнопки
+            # event_data = MessageEventData(self.id_user, msg_id, dt, msg, contact_id)
 
-            if new_event.text.lower() in ['привет', 'hello', 'hi', 'hi!', 'здравствуй', 'здравствуйте', 'привет!', 'здорово!', 'здорово']:
+            if new_event.text.lower() in ['привет', 'hello', 'hi', 'hi!', 'здравствуй', 'здравствуйте', 'привет!',
+                                          'здорово!', 'здорово']:
                 keyboard = VkKeyboard()
-                buttons = ['НАЧАТЬ ПОИСК', 'СЛЕДУЮЩИЙ КАНДИДАТ', 'ДОБАВИТЬ В ИЗБРАННОЕ', 'ПОСМОТРЕТЬ ИЗБРАННЫХ КАНДИДАТОВ']
-                buttons_color = [VkKeyboardColor.PRIMARY, VkKeyboardColor.POSITIVE, VkKeyboardColor.NEGATIVE,
+                buttons = ['НАЧАТЬ ПОИСК', 'СЛЕДУЮЩИЙ КАНДИДАТ', 'ДОБАВИТЬ В ИЗБРАННОЕ',
+                           'ПОСМОТРЕТЬ ИЗБРАННЫХ КАНДИДАТОВ']
+                buttons_color = [VkKeyboardColor.SECONDARY, VkKeyboardColor.PRIMARY, VkKeyboardColor.POSITIVE,
                                  VkKeyboardColor.PRIMARY]
 
                 for btn, btn_color in zip(buttons, buttons_color):
@@ -80,14 +84,14 @@ class VKBot:
 
             elif 'начать поиск' in new_event.text.lower():
                 self.key_seach()
-            elif new_event.text.lower() in ['следующий кандидат']:
+            elif 'следующий кандидат' in new_event.text.lower():
                 if self.candidate_list == None:
                     self.key_seach()
                 else:
                     self.key_next()
-            elif new_event.text.lower() in ['добавить в избранное']:
+            elif 'добавить в избранное' in new_event.text.lower():
                 self.key_add_to_favor()
-            elif new_event.text.lower() in ['посмотреть избранных кандидатов']:
+            elif 'посмотреть избранных кандидатов' in new_event.text.lower():
                 self.key_watch_favor()
             else:
                 self.key_unnamed()
@@ -105,7 +109,7 @@ class VKBot:
         else:
             message = f'Сначала запустите поиск кандидатов!'
         self.vk.method('messages.send',
-                            {'user_id': self.id_user, 'message': message, 'random_id': randrange(10 ** 7)})
+                       {'user_id': self.id_user, 'message': message, 'random_id': randrange(10 ** 7)})
 
     def key_watch_favor(self, keyboard=None):
         message = 'Список избранных:\n'
@@ -115,7 +119,7 @@ class VKBot:
             message = message + f'{number_user:2}. {elected_user["first_name"]} {elected_user["last_name"]} https://vk.com/id{elected_user["vk_id"]}\n'
 
         self.vk.method('messages.send',
-                           {'user_id': self.id_user, 'message': message, 'random_id': randrange(10 ** 7)})
+                       {'user_id': self.id_user, 'message': message, 'random_id': randrange(10 ** 7)})
 
     def key_unnamed(self, keyboard=None):
         message = f'Не понимаю Вас, но давайте попробуем, {self.name_user}!\n\nЯ помогу Вам найти друга, на основании вашего местоположение, возраста и статуса и покажу его ТОП-3 фото.\
@@ -148,6 +152,7 @@ class VKBot:
         self.vk.method('messages.send', values)
 
     def key_next(self, keyboard=None):
+        dbo.pair_update(self.vk_us.user_id, self.candidate['vk_id'], new_status=1)
 
         self.current_candidate += 1
         if self.current_candidate < self.max_Candidates:
@@ -155,10 +160,9 @@ class VKBot:
             self.offset += 1
 
         if self.current_candidate == self.max_Candidates:
-            #self.current_candidate = 0
-            #self.offset += self.max_Candidates
+            # self.current_candidate = 0
+            # self.offset += self.max_Candidates
             self.key_seach()
-
 
     def key_seach(self):
         # self.select_command(data, user_vk)  # обработка входящего сообщения
@@ -187,6 +191,7 @@ class VKBot:
         self.candidate_list = self.vk_candidates.get_users_search(**search_params)
 
         # inserting into USERS table current user and candidates
+        session = dbo.session_start()
         db_user = dbo.Users(self.vk_us.user_id,
                             self.vk_us.data['screen_name'],
                             self.vk_us.data['first_name'],
@@ -196,11 +201,14 @@ class VKBot:
                             self.vk_us.data['bdate'],
                             self.vk_us.data['relation'],
                             'https://vk.com/' + self.vk_us.data['screen_name'])
-        session = dbo.session_start()
         try:
             db_user.insert(session=session)
+            session.commit()
         except DetachedInstanceError as E:
             pilot.interrupt(f'Ошибка вставки пользователя в USERS.\n{E}')
+        except IntegrityError as E:
+            # такой пользователь уже есть в USERS, пропускаем
+            session.rollback()
         for candidate in self.candidate_list['items']:
             db_cand = dbo.Users(candidate['id'],
                                 candidate['screen_name'],
@@ -214,8 +222,6 @@ class VKBot:
             try:
                 db_cand.insert(session=session)
                 session.commit()
-                db_pair = dbo.UserCandidate(db_user, db_cand)
-                db_pair.insert(session=session)
             except DetachedInstanceError as E:
                 pilot.interrupt(f'Ошибка вставки кандидата в USERS или пары в USER_CANDIDATE. user={db_user.id_user},'
                                 f'candidate={db_cand.id_user}\n{E}')
@@ -225,6 +231,16 @@ class VKBot:
             except MultipleResultsFound as E:
                 pilot.interrupt(f'Более одной записи в таблице USERS. user={db_user.id_user}, '
                                 f'candidate={db_cand.id_user}\n{E}')
+            except IntegrityError as E:
+                # такой пользователь уже есть в USERS, пропускаем
+                session.rollback()
+            try:
+                db_pair = dbo.UserCandidate(db_user, db_cand)
+                db_pair.insert(session=session)
+                session.commit()
+            except IntegrityError as E:
+                # такая пара уже есть в USER_CANDIDATE, пропускаем
+                session.rollback()
         dbo.session_end(session)
 
         self.current_candidate = 0
@@ -232,19 +248,33 @@ class VKBot:
         self.get_current_candidate()
 
     def get_current_candidate(self):
-        # session = dbo.session_start()
-        # db_user = dbo.get_user_by_vk(self.id_user)
-        # rec_cand = db_user.select_pair()
-        rec_cand = self.candidate_list['items'][self.current_candidate]
-        message = f'{rec_cand.first_name} {rec_cand.last_name}\n{rec_cand.url}'
-        dict_photos = None  # dbo.select_photos(db_user.id_user)
-        # dbo.session_end(session)
-        if not len(dict_photos):
+        session = dbo.session_start()
+        db_user = dbo.get_user_by_vk(self.id_user, session=session)
+        db_pair = db_user.select_pair(session=session)
+        db_cand = dbo.get_user_by_id(db_pair.id_candidate, session=session)
+        if db_cand.id_vk:
+            # найден кандидат в БД
+            rec_cand = {'first_name': db_cand.first_name,
+                        'last_name': db_cand.last_name,
+                        'id': db_cand.id_vk}
+        else:
+            # не найден в БД, наверное, стоит запускать новый поиск, точнее, вернуться в старый?
+            rec_cand = self.candidate_list['items'][self.current_candidate]
+        message = f'{rec_cand["first_name"]} {rec_cand["last_name"]}\nhttps://vk.com/id{rec_cand["id"]}'
+        dict_photos = dbo.select_photos(db_cand.id_user, session=session)
+        dbo.session_end(session)
+        if not len(dict_photos['photos']):
             try:
                 dict_photos = self.vk_candidates._get_user_photos(rec_cand['id'])
             except Exception as Error:
                 if "This profile is private" in traceback.format_exc():
                     message += f'\nВ этом аккаунте фотографии скрыты.'
+                else:
+                    pilot.interrupt(Error)
+            # insert photos into PHOTO
+            for photo in dict_photos['photos']:
+                db_photo = dbo.Photo(photo['owner_id'], photo['photo_id'], photo['likes'])
+                db_photo.insert()
 
         self.candidate = {
             'first_name': rec_cand["first_name"],

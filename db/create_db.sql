@@ -45,8 +45,8 @@ COMMENT ON TABLE user_candidate IS 'Таблица кандидатов';
 CREATE TABLE IF NOT EXISTS photo (
 	id_photo serial PRIMARY KEY,
 	id_user int REFERENCES users (id_user),
-	url varchar(160) NOT NULL,
-	likes_count int
+	id_photo_vk int NOT NULL,
+	likes_count smallint
 	);
 COMMENT ON TABLE photo IS 'Таблица фотографий пользователей';
 
