@@ -252,7 +252,6 @@ class Users(DataBase, Base):
         :return: объект UserCandidate
         """
         if session:
-            # if self.is_pair_exists(session=session):
             old_date = datetime.now() - timedelta(days=7)
             stmt = sa.select(UserCandidate).where(UserCandidate.id_user == self.id_user,
                                                   sa.or_(UserCandidate.id_status == 0,
@@ -262,6 +261,28 @@ class Users(DataBase, Base):
             return new_pair
         else:
             return None
+
+    def show_favorites(self, id_vk) -> list:
+        """
+        Возвращает словарь с избранными кандидатами для текущего пользователя
+        :param: id_vk
+        :return: list with dicts
+        """
+        res_dict = []
+        with Session(engine) as session:
+            user = get_user_by_vk(id_vk, session=session)
+            stmt = sa.select(UserCandidate).where(UserCandidate.id_user == user.id_user,
+                                                  UserCandidate.id_status == 2)
+            favorites = session.scalars(stmt).all()
+            for cand in favorites:
+                stmt = sa.select(Users).where(Users.id_user == cand.id_candidate)
+                candidate = session.scalars(stmt).one_or_none()
+                res_dict.append({'first_name': candidate.first_name,
+                                 'last_name': candidate.last_name,
+                                 'vk_id': candidate.id_vk,
+                                 'elected': True})
+        return res_dict
+
 
 
 class UserCandidate(DataBase, Base):
