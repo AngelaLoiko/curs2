@@ -252,6 +252,7 @@ class Users(DataBase, Base):
         :return: объект UserCandidate
         """
         if session:
+            # if self.is_pair_exists(session=session):
             old_date = datetime.now() - timedelta(days=7)
             stmt = sa.select(UserCandidate).where(UserCandidate.id_user == self.id_user,
                                                   sa.or_(UserCandidate.id_status == 0,
