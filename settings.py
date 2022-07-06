@@ -4,7 +4,7 @@ with open('tokens/token_group.txt') as f:
     token_group = f.read()
 
 user_record = {
-    "TOKEN_VK": "",
+    "TOKEN_VK": token_vk,
     "version_api_vk": "5.131",
     "max_Candidates": 5,
     "older": 2,  # ищу кандидатов старше на столько лет
