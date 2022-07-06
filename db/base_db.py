@@ -48,15 +48,15 @@ def get_user_by_vk(id_vk: int, session=None) -> object:
     Получает объект user из users по имеющемуся id_vk
     :param session:
     :param id_vk:
-    :return: user
+    :return: User object
     """
     if session:
         stmt = sa.select(Users).where(Users.id_vk == id_vk)
-        user = session.scalars(stmt).one()
+        user = session.scalars(stmt).one_or_none()
     else:
         with Session(engine) as session:
             stmt = sa.select(Users).where(Users.id_vk == id_vk)
-            user = session.scalars(stmt).one()
+            user = session.scalars(stmt).one_or_none()
     return user
 
 
@@ -86,11 +86,24 @@ def select_photos(id_user: int, session=None) -> dict:
         stmt = sa.select(Photo).where(Photo.id_user == id_user).limit(3)
         photo_list = session.scalars(stmt).all()
         res_dict = {'photos': []}
-        for photo in photo_list:
-            res_dict['photos'].append([{'photo_id': photo[2], 'owner_id': photo[1], 'likes': photo[3]}])
+        for ph in photo_list:
+            res_dict['photos'].append({'photo_id': ph.id_photo_vk, 'owner_id': ph.id_user, 'likes': ph.likes_count})
         return res_dict
     else:
         return {}
+
+
+def get_offset(id_user: int) -> int:
+    """
+    Получает сдвиг для функции поиска в ВК
+    :param id_user: идентификатор ВК текущего пользователя
+    :return:
+    """
+    with Session(engine) as session:
+        user = get_user_by_vk(id_user, session=session)
+        stmt = sa.select(UserCandidate).where(UserCandidate.id_user == user.id_user)
+        offset = len(session.scalars(stmt).all())
+    return offset
 
 
 def session_start():
@@ -235,24 +248,12 @@ class Users(DataBase, Base):
             user.url = self.url
             session.commit()
 
-    def is_pair_exists(self, session=None) -> bool:
-        """
-        Проверяет наличие непоказанных кандидатов для пользователя
-        :return: True - есть кандидаты в БД; False - нет кандидатов
-        """
-        if session:
-            if sa.exists().where(UserCandidate.id_user == self.id_user, UserCandidate.id_status == 0):
-                return True
-            else:
-                return False
-
     def select_pair(self, session=None) -> object:
         """
         Выбирает кандидата из таблицы user_candidate (при наличии)
         :return: объект UserCandidate
         """
         if session:
-            # if self.is_pair_exists(session=session):
             old_date = datetime.now() - timedelta(days=7)
             stmt = sa.select(UserCandidate).where(UserCandidate.id_user == self.id_user,
                                                   sa.or_(UserCandidate.id_status == 0,
@@ -283,7 +284,6 @@ class Users(DataBase, Base):
                                  'vk_id': candidate.id_vk,
                                  'elected': True})
         return res_dict
-
 
 
 class UserCandidate(DataBase, Base):
