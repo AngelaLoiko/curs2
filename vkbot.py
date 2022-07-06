@@ -212,8 +212,9 @@ class VKBot:
         except DetachedInstanceError as E:
             pilot.interrupt(f'Ошибка вставки пользователя в USERS.\n{E}')
         except IntegrityError as E:
+            pass
             # такой пользователь уже есть в USERS, пропускаем
-            session.rollback()
+           # session.rollback()
         for candidate in self.candidate_list['items']:
             if not 'relation' in candidate:
                 candidate['relation'] = 0
