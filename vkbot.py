@@ -83,10 +83,10 @@ class VKBot:
                 self.key_start(keyboard)
 
             elif 'начать поиск' in new_event.text.lower():
-                self.key_seach()
+                self.key_search()
             elif 'следующий кандидат' in new_event.text.lower():
-                if self.candidate_list == None:
-                    self.key_seach()
+                if self.candidate_list is None:
+                    self.key_search()
                 else:
                     self.key_next()
             elif 'добавить в избранное' in new_event.text.lower():
@@ -97,6 +97,8 @@ class VKBot:
                 self.key_unnamed()
 
     def key_add_to_favor(self, keyboard=None):
+        dbo.pair_update(self.vk_us.user_id, self.candidate['vk_id'], new_status=2)
+
         if self.candidate_list:
             first_name = self.candidate['first_name']
             last_name = self.candidate['last_name']
@@ -112,9 +114,11 @@ class VKBot:
                        {'user_id': self.id_user, 'message': message, 'random_id': randrange(10 ** 7)})
 
     def key_watch_favor(self, keyboard=None):
+
+        db_list = dbo.Users.show_favorites(self.vk_us.user_id)
         message = 'Список избранных:\n'
         number_user = 0
-        for elected_user in self.elected_user:
+        for elected_user in (db_list if db_list else self.elected_user):
             number_user += 1
             message = message + f'{number_user:2}. {elected_user["first_name"]} {elected_user["last_name"]} https://vk.com/id{elected_user["vk_id"]}\n'
 
@@ -162,9 +166,9 @@ class VKBot:
         if self.current_candidate == self.max_Candidates:
             # self.current_candidate = 0
             # self.offset += self.max_Candidates
-            self.key_seach()
+            self.key_search()
 
-    def key_seach(self):
+    def key_search(self):
         # self.select_command(data, user_vk)  # обработка входящего сообщения
 
         search_params = {
