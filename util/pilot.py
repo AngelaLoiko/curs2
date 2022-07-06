@@ -44,7 +44,6 @@ def read_json(file_name: str) -> dict:
 
 def interrupt(args):
 
-#  hues.error(f'Ошибка: {args}')
     hues.error(f'{args}')
     exit()
 

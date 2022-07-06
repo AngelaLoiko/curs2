@@ -8,10 +8,8 @@ import settings
 
 Base = declarative_base()
 if settings.params['use_database']:
-    dbconnect = settings.params['DBCONNECT']
-    #with open('tokens/database.txt') as conf:
-    #engine = sa.create_engine(conf.read(), echo=True, future=True)
-    engine = sa.create_engine(dbconnect, echo=True, future=True)
+    with open('tokens/database.txt') as conf:
+        engine = sa.create_engine(conf.read(), echo=True, future=True)
 
 
 def get_dic() -> dict:

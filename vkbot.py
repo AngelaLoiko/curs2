@@ -54,7 +54,6 @@ class VKBot:
     def check_event(self, new_event):
         # Получено новое сообщение от пользователя. Определяем пользователя и получаем его инфо
         if new_event.type == VkEventType.MESSAGE_NEW and new_event.to_me and new_event.text:
-#        if new_event.type == VkBotEventType.MESSAGE_NEW and new_event.to_me and new_event.text:
             self.id_user = new_event.user_id
             self.vk_us = vkqueries.VkUser(self.vk_user, self.id_user)
             self.name_user = self.vk_us.get_user_data()
@@ -130,7 +129,8 @@ class VKBot:
                    Нажмите кнопку "НАЧАТЬ ПОИСК"'
 
         values = {
-            'peer_id': self.id_user,
+            'user_id': self.id_user,
+            #'peer_id': self.id_user,
             'message': message,
             'random_id': randrange(10 ** 7)
         }
@@ -145,7 +145,8 @@ class VKBot:
                    Нажмите кнопку "НАЧАТЬ ПОИСК"'
 
         values = {
-            'peer_id': '2000000001',
+            'user_id': self.id_user,
+            #'peer_id': '2000000001',
             'message': message,
             'random_id': randrange(10 ** 7)
         }
@@ -214,6 +215,8 @@ class VKBot:
             # такой пользователь уже есть в USERS, пропускаем
             session.rollback()
         for candidate in self.candidate_list['items']:
+            if not 'relation' in candidate:
+                candidate['relation'] = 0
             db_cand = dbo.Users(candidate['id'],
                                 candidate['screen_name'],
                                 candidate['first_name'],
@@ -298,7 +301,8 @@ class VKBot:
         params['message_text'] = message
 
         # Формирование адресата
-        params['receiver_user_id'] = '2000000001'  # peer_id
+        params['receiver_user_id'] = self.id_user
+        #params['receiver_user_id'] = '2000000001'  # peer_id
 
         # Отправка сообщения
         self.vk_send_mess.send_message(**params)
@@ -307,7 +311,6 @@ class VKBot:
         """Главная функция запуска бота - ожидание новых событий (сообщений)"""
         try:
             self.long_poll = VkLongPoll(vk=self.vk)
-            #self.long_poll = VkBotLongPoll(vk=self.vk, group_id=213985884)
         except Exception as E:
             pilot.interrupt(f'Бот не запустился. VkLongPoll не удалось создать. \n {E}')
 
