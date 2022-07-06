@@ -175,7 +175,8 @@ class VKBot:
         search_params = {
             'sort': 0,
             'has_photo': 1,
-            'offset': self.offset,
+            # 'offset': self.offset,
+            'offset': dbo.get_offset(self.id_user),
             'count': self.max_Candidates,
             'sex': 2,
             'fields': 'photo_max, photo_id, sex, bdate, home_town, status, city, relation, screen_name'
@@ -206,18 +207,14 @@ class VKBot:
                             self.vk_us.data['bdate'],
                             self.vk_us.data['relation'],
                             'https://vk.com/' + self.vk_us.data['screen_name'])
-        try:
+        db_user_exists = isinstance(dbo.get_user_by_vk(db_user.id_vk, session=session), dbo.DataBase)
+        if not db_user_exists:
             db_user.insert(session=session)
-            session.commit()
-        except DetachedInstanceError as E:
-            pilot.interrupt(f'Ошибка вставки пользователя в USERS.\n{E}')
-        except IntegrityError as E:
-            pass
-            # такой пользователь уже есть в USERS, пропускаем
-           # session.rollback()
         for candidate in self.candidate_list['items']:
             if not 'relation' in candidate:
                 candidate['relation'] = 0
+            if not 'city' in candidate:
+                candidate['city'] = self.vk_us.data['city']
             db_cand = dbo.Users(candidate['id'],
                                 candidate['screen_name'],
                                 candidate['first_name'],
@@ -227,28 +224,33 @@ class VKBot:
                                 candidate['bdate'],
                                 candidate['relation'],
                                 'https://vk.com/' + candidate['screen_name'])
-            try:
+            db_cand_exists = isinstance(dbo.get_user_by_vk(db_cand.id_vk, session=session), dbo.DataBase)
+            if not db_cand_exists:
                 db_cand.insert(session=session)
+            # перед поиском пары надо закоммитить текущего кандидата, иначе он не найдётся в базе
+            try:
                 session.commit()
             except DetachedInstanceError as E:
-                pilot.interrupt(f'Ошибка вставки кандидата в USERS или пары в USER_CANDIDATE. user={db_user.id_user},'
-                                f'candidate={db_cand.id_user}\n{E}')
+                pilot.interrupt(f'Ошибка вставки пользователя или кандидата в USERS. user={self.vk_us.user_id},'
+                                f'candidate={candidate["id"]}\n{E}')
             except NoResultFound as E:
-                pilot.interrupt(f'Нет нужной записи в таблице USERS. user={db_user.id_user}, '
-                                f'candidate={db_cand.id_user}\n{E}')
+                pilot.interrupt(f'Нет нужной записи в таблице USERS. user={self.vk_us.user_id}, '
+                                f'candidate={candidate["id"]}\n{E}')
             except MultipleResultsFound as E:
-                pilot.interrupt(f'Более одной записи в таблице USERS. user={db_user.id_user}, '
-                                f'candidate={db_cand.id_user}\n{E}')
-            except IntegrityError as E:
-                # такой пользователь уже есть в USERS, пропускаем
-                session.rollback()
-            try:
-                db_pair = dbo.UserCandidate(db_user, db_cand)
+                pilot.interrupt(f'Более одной записи в таблице USERS. user={self.vk_us.user_id}, '
+                                f'candidate={candidate["id"]}\n{E}')
+
+            # добавление пары
+            db_pair = dbo.UserCandidate(db_user, db_cand)
+            db_pair_exists = isinstance(db_pair.find_pair(db_pair.id_user, db_pair.id_candidate, session=session),
+                                        dbo.DataBase)
+            if not db_pair_exists:
                 db_pair.insert(session=session)
-                session.commit()
-            except IntegrityError as E:
-                # такая пара уже есть в USER_CANDIDATE, пропускаем
-                session.rollback()
+        try:
+            session.commit()
+        except IntegrityError as E:
+            # такая пара уже есть в USER_CANDIDATE, пропускаем
+            session.rollback()
         dbo.session_end(session)
 
         self.current_candidate = 0
