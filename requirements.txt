@@ -10,6 +10,5 @@ psycopg2==2.9.3
 requests==2.27.1
 setuptools==56.0.0
 SQLAlchemy==1.4.34
-tqdm==4.63.0
 urllib3==1.26.8
 vk-api==11.9.8
