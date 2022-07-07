@@ -101,8 +101,11 @@ def get_offset(id_user: int) -> int:
     """
     with Session(engine) as session:
         user = get_user_by_vk(id_user, session=session)
-        stmt = sa.select(UserCandidate).where(UserCandidate.id_user == user.id_user)
-        offset = len(session.scalars(stmt).all())
+        if user:
+            stmt = sa.select(UserCandidate).where(UserCandidate.id_user == user.id_user)
+            offset = len(session.scalars(stmt).all())
+        else:
+            offset = 0
     return offset
 
 
