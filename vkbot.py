@@ -260,6 +260,8 @@ class VKBot:
     def get_current_candidate(self):
         session = dbo.session_start()
         db_user = dbo.get_user_by_vk(self.id_user, session=session)
+        if not db_user:
+            return None
         db_pair = db_user.select_pair(session=session)
         db_cand = dbo.get_user_by_id(db_pair.id_candidate, session=session)
         if db_cand.id_vk:

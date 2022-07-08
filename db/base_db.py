@@ -129,8 +129,9 @@ def pair_update(id_vk_user: int, id_vk_cand: int, new_status: int) -> None:
     with Session(engine) as session:
         db_cand = get_user_by_vk(id_vk_user, session=session)
         db_user = get_user_by_vk(id_vk_cand, session=session)
-        db_pair = UserCandidate.find_pair(db_user.id_user, db_cand.id_user, session=session)
-        db_pair.update(id_status=new_status, session=session)
+        if db_cand and db_user:
+            db_pair = UserCandidate.find_pair(db_user.id_user, db_cand.id_user, session=session)
+            db_pair.update(id_status=new_status, session=session)
 
 
 class Status(Base):
@@ -276,16 +277,17 @@ class Users(DataBase, Base):
         res_dict = []
         with Session(engine) as session:
             user = get_user_by_vk(id_vk, session=session)
-            stmt = sa.select(UserCandidate).where(UserCandidate.id_user == user.id_user,
-                                                  UserCandidate.id_status == 2)
-            favorites = session.scalars(stmt).all()
-            for cand in favorites:
-                stmt = sa.select(Users).where(Users.id_user == cand.id_candidate)
-                candidate = session.scalars(stmt).one_or_none()
-                res_dict.append({'first_name': candidate.first_name,
-                                 'last_name': candidate.last_name,
-                                 'vk_id': candidate.id_vk,
-                                 'elected': True})
+            if user:
+                stmt = sa.select(UserCandidate).where(UserCandidate.id_user == user.id_user,
+                                                      UserCandidate.id_status == 2)
+                favorites = session.scalars(stmt).all()
+                for cand in favorites:
+                    stmt = sa.select(Users).where(Users.id_user == cand.id_candidate)
+                    candidate = session.scalars(stmt).one_or_none()
+                    res_dict.append({'first_name': candidate.first_name,
+                                     'last_name': candidate.last_name,
+                                     'vk_id': candidate.id_vk,
+                                     'elected': True})
         return res_dict
 
 
