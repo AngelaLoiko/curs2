@@ -92,7 +92,7 @@ class VKCandidates:
                 'likes': value['likes']['count'] + value['comments']['count']
             })
 
-        if len_result < 3:
+        if len_result <= 3:
             photo_result = {
                 'photos': [new_result[photo] for photo in range(len_result)]
             }

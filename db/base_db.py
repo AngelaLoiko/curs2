@@ -77,20 +77,19 @@ def get_user_by_id(id_user: int, session=None) -> object:
     return user
 
 
-def select_photos(id_user: int, session=None) -> dict:
+def select_photos(id_user: int) -> dict:
     """
     Выбирает до 3 фото с максимальным количеством лайков из таблицы photo для пользователя с id_user
     :return: list of `photo` objects
     """
-    if session:
-        stmt = sa.select(Photo).where(Photo.id_user == id_user).limit(3)
+    res_dict = {'photos': []}
+    with Session(engine) as session:
+        user = get_user_by_vk(id_user, session=session)
+        stmt = sa.select(Photo).where(Photo.id_user == user.id_user).limit(3)
         photo_list = session.scalars(stmt).all()
-        res_dict = {'photos': []}
         for ph in photo_list:
             res_dict['photos'].append({'photo_id': ph.id_photo_vk, 'owner_id': ph.id_user, 'likes': ph.likes_count})
         return res_dict
-    else:
-        return {}
 
 
 def get_offset(id_user: int) -> int:
@@ -118,7 +117,104 @@ def session_end(session):
     session.close()
 
 
-def pair_update(id_vk_user: int, id_vk_cand: int, new_status: int) -> None:
+def select_candidates(id_vk_user: int) -> dict:
+    """
+    Возвращает словарь со списком кандидатов для пользователя
+    :param id_vk_user: Идентификатор ВК пользователя
+    :return: словарь со списком кандидатов
+    """
+    res_dict = {'count': 0, 'items': []}
+    with Session(engine) as session:
+        stmt = sa.select(Users).where(Users.id_vk == id_vk_user)
+        user = session.scalars(stmt).one_or_none()
+        if not user:
+            # Пользователь отсутствует в users, значит, и кандидатов у него не будет
+            return res_dict
+        old_date = datetime.now() - timedelta(days=7)
+        stmt = sa.select(UserCandidate).where(UserCandidate.id_user == user.id_user,
+                                              sa.or_(UserCandidate.id_status == 0,
+                                                     sa.and_(UserCandidate.id_status == 1,
+                                                             UserCandidate.search_date < old_date.isoformat())))
+        candidate_couples = session.scalars(stmt).all()
+        for couple in candidate_couples:
+            stmt = sa.select(Users).where(Users.id_user == couple.id_candidate)
+            candidate = session.scalars(stmt).one_or_none()
+            if candidate:
+                # Кандидат есть в users, добавляем в выдачу
+                res_dict['count'] += 1
+                res_dict['items'].append({'id': candidate.id_vk,
+                                          'bdate': candidate.bdate.strftime('%d.%m.%Y'),
+                                          'city': {'id': candidate.id_city, 'title': ''},
+                                          'relation': candidate.id_relation,
+                                          'sex': candidate.id_sex,
+                                          'screen_name': candidate.id_vk_str,
+                                          'first_name': candidate.first_name,
+                                          'last_name': candidate.last_name})
+        return res_dict
+
+
+def add_candidates(vk_user: dict, candidate_list: dict) -> None:
+    """
+    Добавляет кандидатов из ВК в users и user_candidate. Если такой кандидат уже есть - обновляет информацию. Если
+    самого пользователя ещё нет в базе - добавляет и его.
+    :param vk_user: Словарь с данными пользователя из ВК, для которого найдены кандидаты
+    :param candidate_list: Словарь со списком кандидатов из ВК
+    :return: None
+    """
+    '''Процедура пытается смержить эту информацию с той которая есть в базе - по айдишнику искать, есть ли такой
+    кандидат в списке, если такого кандидата нет- добавить, если есть, если флаг он был просмотрен- вообще ничего
+    делать не надо- можем скипнуть эту запись, это может быть если что -то с офсетом пошло не так. А если флаг стоит, 
+    что он еще не просмотрен, то эту запись нужно обновить- используя полученную информацию'''
+    with Session(engine) as session:
+        db_user = get_user_by_vk(vk_user['id'])
+        if not db_user:
+            # Пользователя нет в базе, надо добавить
+            db_user = Users(vk_user['id'],
+                            vk_user['screen_name'],
+                            vk_user['first_name'],
+                            vk_user['last_name'],
+                            vk_user['sex'],
+                            vk_user.get('city').get('id', 0),
+                            vk_user['bdate'],
+                            vk_user.get('relation', 0),
+                            'https://vk.com/' + vk_user['screen_name'])
+            db_user.insert(session=session)
+            session.commit()
+
+        for candidate in candidate_list['items']:
+            db_cand = get_user_by_vk(candidate['id'], session=session)
+            if db_cand:
+                # Кандидат уже есть в users
+                couple = UserCandidate(db_user, db_cand)
+                couple = couple.find_couple(couple.id_user, couple.id_candidate, session=session)
+                if couple:
+                    # Уже есть пара с этим кандидатом. Если статус не 0 - идём дальше
+                    if couple.id_status != 0:
+                        continue
+                    # else: если 0, то вроде нечего с ней делать
+                else:
+                    # Добавляем пару
+                    couple = UserCandidate(db_user, db_cand)
+                    couple.insert(session=session)
+            else:
+                # Кандидата ещё нет, надо добавить его и пару с ним
+                db_cand = Users(candidate['id'],
+                                candidate['screen_name'],
+                                candidate['first_name'],
+                                candidate['last_name'],
+                                candidate['sex'],
+                                candidate.get('city').get('id', 0),
+                                candidate['bdate'],
+                                candidate.get('relation', 0),
+                                'https://vk.com/' + candidate['screen_name'])
+                db_cand.insert(session=session)
+                session.commit()
+                couple = UserCandidate(db_user, db_cand)
+                couple.insert(session=session)
+        session.commit()
+
+
+def couple_update(id_vk_user: int, id_vk_cand: int, new_status: int) -> None:
     """
     Обновление статуса пары
     :param id_vk_user:
@@ -127,11 +223,12 @@ def pair_update(id_vk_user: int, id_vk_cand: int, new_status: int) -> None:
     :return:
     """
     with Session(engine) as session:
-        db_cand = get_user_by_vk(id_vk_user, session=session)
-        db_user = get_user_by_vk(id_vk_cand, session=session)
+        db_user = get_user_by_vk(id_vk_user, session=session)
+        db_cand = get_user_by_vk(id_vk_cand, session=session)
         if db_cand and db_user:
-            db_pair = UserCandidate.find_pair(db_user.id_user, db_cand.id_user, session=session)
-            db_pair.update(id_status=new_status, session=session)
+            db_couple = UserCandidate(db_user, db_cand)
+            db_couple = db_couple.find_couple(db_couple.id_user, db_couple.id_candidate, session=session)
+            db_couple.update(id_status=new_status, session=session)
 
 
 class Status(Base):
@@ -317,26 +414,6 @@ class UserCandidate(DataBase, Base):
         return f'UserCandidate(id={self.id_user_candidate}, pair={self.id_user}-{self.id_candidate}, ' \
                f'status={self.id_status}, searched={self.search_date})'
 
-    def find_pair(self, id_user, id_candidate, session=None):
-        """
-        Находит пару по двум идентификаторам
-        :param id_user:
-        :param id_candidate:
-        :param session:
-        :return:
-        """
-        if session:
-            stmt = sa.select(UserCandidate).where(UserCandidate.id_user == id_user,
-                                                  UserCandidate.id_candidate == id_candidate)
-            pair = session.scalars(stmt).one_or_none()
-            return pair
-        else:
-            with Session(engine) as session:
-                stmt = sa.select(UserCandidate).where(UserCandidate.id_user == id_user,
-                                                      UserCandidate.id_candidate == id_candidate)
-                pair = session.scalars(stmt).one_or_none()
-                return pair
-
     def update(self, id_status: int, session=None) -> None:
         """
         Обновляет статус и дату модификации текущей пары.
@@ -348,6 +425,26 @@ class UserCandidate(DataBase, Base):
             rec.id_status = id_status
             rec.search_date = datetime.now().isoformat()
             session.commit()
+
+    def find_couple(self, id_user, id_candidate, session=None):
+        """
+        Находит пару по двум идентификаторам
+        :param id_user:
+        :param id_candidate:
+        :param session:
+        :return:
+        """
+        if session:
+            stmt = sa.select(UserCandidate).where(UserCandidate.id_user == id_user,
+                                                  UserCandidate.id_candidate == id_candidate)
+            couple = session.scalars(stmt).one_or_none()
+            return couple
+        else:
+            with Session(engine) as session:
+                stmt = sa.select(UserCandidate).where(UserCandidate.id_user == id_user,
+                                                      UserCandidate.id_candidate == id_candidate)
+                couple = session.scalars(stmt).one_or_none()
+                return couple
 
 
 class Photo(DataBase, Base):
