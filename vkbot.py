@@ -116,19 +116,19 @@ class VKBot:
         else:
             message = f'Сначала запустите поиск кандидатов!'
         self.vk.method('messages.send',
-                       {'user_id': self.id_user, 'message': message, 'random_id': randrange(10 ** 7)})
+                       {'peer_id': self.id_peer, 'message': message, 'random_id': randrange(10 ** 7)})
 
     def key_watch_favor(self, keyboard=None):
 
-        db_list = dbo.Users.show_favorites(self.vk_us.user_id)
+        self.elected_user = dbo.show_favorites(self.vk_us.user_id)
         message = 'Список избранных:\n'
         number_user = 0
-        for elected_user in (db_list if db_list else self.elected_user):
+        for elected_user in self.elected_user:
             number_user += 1
             message = message + f'{number_user:2}. {elected_user["first_name"]} {elected_user["last_name"]} https://vk.com/id{elected_user["vk_id"]}\n'
 
         self.vk.method('messages.send',
-                       {'user_id': self.id_user, 'message': message, 'random_id': randrange(10 ** 7)})
+                       {'peer_id': self.id_peer, 'message': message, 'random_id': randrange(10 ** 7)})
 
     def key_unnamed(self, keyboard=None):
         message = f'Не понимаю Вас, но давайте попробуем, {self.name_user}!\n\nЯ помогу Вам найти друга, на основании вашего местоположение, возраста и статуса и покажу его ТОП-3 фото.\
@@ -136,7 +136,7 @@ class VKBot:
 
         values = {
             'user_id': self.id_user,
-            #'peer_id': self.id_user,
+            'peer_id': self.id_peer,
             'message': message,
             'random_id': randrange(10 ** 7)
         }
@@ -152,7 +152,7 @@ class VKBot:
 
         values = {
             'user_id': self.id_user,
-            #'peer_id': '2000000001',
+            'peer_id': self.id_peer,
             'message': message,
             'random_id': randrange(10 ** 7)
         }
