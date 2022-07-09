@@ -113,21 +113,16 @@ class VKSendMess:
             Класс для отправки сообщений с помощью библиотеки vk_api
             """
 
-            # Флаг отсутствия клавиатуры к сообщению
-            NONE_KEY_BOARD = '{\n "one_time": true,\n "buttons": []\n}'
-
             def __init__(self, vk_api_object: VkApiMethod):
                 self.vk = vk_api_object
 
             def send_message(self, receiver_user_id: str = None,
                              message_text: str = '',
-                             #keyboard: str = NONE_KEY_BOARD,
                              attachment: str = None):
                 """
                 Отправка сообщения от лица авторизованного пользователя
                 :param receiver_user_id: уникальный идентификатор получателя сообщения
                 :param message_text: текст отправляемого сообщения
-                :param keyboard: клавиатура к сообщению
                 :param attachment: фото или что-то другое, прикрепленное к сообщению
                 """
 
@@ -135,7 +130,6 @@ class VKSendMess:
                 params_message = {
                     'peer_id': receiver_user_id,
                     'message': message_text,
-                    #'keyboard': keyboard,
                     'random_id': get_random_id()
                 }
 

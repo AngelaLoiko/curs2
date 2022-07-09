@@ -15,7 +15,7 @@ group_record = {
     "TOKEN_GROUP": token_group
 }
 
-params = {
-    'use_database': True,
-    'DBCONNECT': 'postgresql+psycopg2://postgres:dbadmin@localhost/postgres'
-}
+# params_DB = {
+#     'use_database': True,
+#     'DBCONNECT': 'postgresql+psycopg2://postgres:dbadmin@localhost/postgres'
+# }

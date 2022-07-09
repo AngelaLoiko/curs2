@@ -25,8 +25,9 @@ class VKBot:
         self.vk_user = None
         self.vk_group = None
         self.max_Candidates = settings.user_record['max_Candidates']
-        self.offset = 0
+        self.offset = -1 # Офсет запроса кандидатов для вызова API Вконтакте. offset=-1 признак того, что он еще не инициализирован из базы данных
         self.current_candidate = 0
+        self.count_recursion = 0 # Количество реккурсивных вызовов если Вконтакте перестает возвращать новых кандидатов при смещении офсета
         self.candidate_list = None
         self.elected_user = []
         try:
@@ -58,19 +59,10 @@ class VKBot:
             self.name_user = self.vk_us.get_user_data()
             if not self.name_user:
                 pilot.interrupt('Не удалось выполнить запрос к vk_api, возможно TOKEN_VK истёк. \n Заполните действительный TOKEN_VK в файле settings.py')
-            uid = new_event.user_id  # id отправителя
-            msg_id = new_event.message_id  # id сообщения
-            dt = new_event.timestamp  # время сообщения
-            msg = new_event.text  # текст сообщения
-            # contact_id = pilot.contact_id_from_dict(new_event.extra_values)  # id контакта вызова кнопки
-            # event_data = MessageEventData(self.id_user, msg_id, dt, msg, contact_id)
 
-            '''Запустили бота. 
-            Бот должен полезть в базу данных.
-            Процедура из базы должна вернуть заданных параметром непросмотренных людей- вернуть candidate_list
-            Если база пустая, candidate_list будет 
-            пустым (count == 0, items == []).'''
-            self.candidate_list = dbo.select_candidates(self.id_user)
+            # Получаем количество записей из базы данных для текущего пользователя для установки первоначального офсета
+            if self.offset == -1:
+                self.offset = dbo.get_offset(self.id_user)
 
             if new_event.text.lower() in ['привет', 'hello', 'hi', 'hi!', 'здравствуй', 'здравствуйте', 'привет!',
                                           'здорово!', 'здорово']:
@@ -90,8 +82,9 @@ class VKBot:
             elif 'начать поиск' in new_event.text.lower():
                 self.key_search()
             elif 'следующий кандидат' in new_event.text.lower():
-                if self.candidate_list is None:
-                    self.key_search()
+#                if self.candidate_list is None:
+                if self.candidate_list is None or self.candidate_list['count'] == 0:
+                        self.key_search()
                 else:
                     self.key_next()
             elif 'добавить в избранное' in new_event.text.lower():
@@ -102,9 +95,8 @@ class VKBot:
                 self.key_unnamed()
 
     def key_add_to_favor(self, keyboard=None):
-        dbo.couple_update(self.vk_us.user_id, self.candidate['vk_id'], new_status=2)
-
         if self.candidate_list:
+            dbo.couple_update(self.vk_us.user_id, self.candidate['vk_id'], new_status=2)
             first_name = self.candidate['first_name']
             last_name = self.candidate['last_name']
             self.candidate['elected'] = True
@@ -164,24 +156,20 @@ class VKBot:
 
     def key_next(self, keyboard=None):
 
-        self.current_candidate += 1
-        if self.current_candidate < self.max_Candidates:
+        if self.current_candidate < self.candidate_list['count']:
             self.get_current_candidate()
             self.offset += 1
-
-        if self.current_candidate == self.max_Candidates:
-            # self.current_candidate = 0
-            # self.offset += self.max_Candidates
+        else:
             self.key_search()
 
     def key_search(self):
-        # self.select_command(data, user_vk)  # обработка входящего сообщения
+
+        self.candidate_list = dbo.select_candidates(self.id_user) # Вернуть из базы непросмотренных кандидатов
 
         search_params = {
             'sort': 0,
             'has_photo': 1,
-            # 'offset': self.offset,
-            'offset': dbo.get_offset(self.id_user),
+            'offset': self.offset,
             'count': self.max_Candidates,
             'sex': 2,
             'fields': 'photo_max, photo_id, sex, bdate, home_town, status, city, relation, screen_name'
@@ -202,18 +190,30 @@ class VKBot:
         if not self.candidate_list['items']:
             self.candidate_list = self.vk_candidates.get_users_search(**search_params)
             # Трекинг количества возвращаемых из ВК кандидатов
-            if len(self.candidate_list['items']) != settings.user_record['max_Candidates']:
-                print(f'■■■■■■■■■ Received {len(self.candidate_list["items"])} records from VK')
+            # if len(self.candidate_list['items']) != settings.user_record['max_Candidates']:
+            #     print(f'■■■■■■■■■ Received {len(self.candidate_list["items"])} records from VK')
 
         '''candidate_list сохраняется в базу- передается как параметр в процедуру, которая сохраняет в базу.'''
         dbo.add_candidates(self.vk_us.data, self.candidate_list)
-
+        self.candidate_list = dbo.select_candidates(self.id_user)
         self.current_candidate = 0
-        self.offset += 1
-        self.get_current_candidate()
+
+        '''Если из ВКонтакте пришли все повторные кандидаты, база данных вернула пустой список
+        Мы должны сместить офсет дополнительно, чтобы процедура начала возвращать новых кандидатов
+        Иначе показываем 1го кандидата из полученного списка
+        '''
+        if len(self.candidate_list['items']) == 0:
+            self.offset += self.max_Candidates
+            self.count_recursion += 1
+            if self.count_recursion > 10:
+                pilot.interrupt('Вконтакте перестал выдавать новую информацию. Останавливаем бота')
+            self.key_search()
+        else:
+            self.count_recursion = 0
+            self.offset += 1
+            self.get_current_candidate()
 
     def get_current_candidate(self):
-
         rec_cand = self.candidate_list['items'][self.current_candidate]
         message = f'{rec_cand["first_name"]} {rec_cand["last_name"]}\nhttps://vk.com/id{rec_cand["id"]}'
         dict_photos = dbo.select_photos(rec_cand['id'])
@@ -225,10 +225,14 @@ class VKBot:
                     message += f'\nВ этом аккаунте фотографии скрыты.'
                 else:
                     pilot.interrupt(Error)
-            # insert photos into PHOTO
-            for photo in dict_photos['photos']:
-                db_photo = dbo.Photo(photo['owner_id'], photo['photo_id'], photo['likes'])
-                db_photo.insert()
+
+            if 'photos' in dict_photos.keys():
+                # insert photos into PHOTO
+                for photo in dict_photos['photos']:
+                    db_photo = dbo.Photo(photo['owner_id'], photo['photo_id'], photo['likes'])
+                    db_photo.insert()
+            else:
+                message += f'\nВ этом аккаунте нет фото в профайле.'
 
         self.candidate = {
             'first_name': rec_cand["first_name"],
@@ -256,6 +260,7 @@ class VKBot:
         # Обновление статуса кандидата в "Просмотрен"
         dbo.couple_update(self.id_user, self.candidate['vk_id'], new_status=1)
 
+        self.current_candidate += 1
 
     def startbot(self):
         """Главная функция запуска бота - ожидание новых событий (сообщений)"""

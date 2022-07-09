@@ -7,9 +7,9 @@ from datetime import datetime, timedelta
 import settings
 
 Base = declarative_base()
-if settings.params['use_database']:
-    with open('tokens/database.txt') as conf:
-        engine = sa.create_engine(conf.read(), echo=True, future=True)
+#if settings.params_DB['use_database']:
+with open('tokens/database.txt') as conf:
+    engine = sa.create_engine(conf.read(), echo=True, future=True)
 
 
 def get_dic() -> dict:
@@ -102,7 +102,7 @@ def get_offset(id_user: int) -> int:
         user = get_user_by_vk(id_user, session=session)
         if user:
             stmt = sa.select(UserCandidate).where(UserCandidate.id_user == user.id_user)
-            offset = len(session.scalars(stmt).all())
+            offset = len(session.scalars(stmt).all()) + 1
         else:
             offset = 0
     return offset
@@ -169,12 +169,14 @@ def add_candidates(vk_user: dict, candidate_list: dict) -> None:
         db_user = get_user_by_vk(vk_user['id'])
         if not db_user:
             # Пользователя нет в базе, надо добавить
+            city = candidate['city']['id'] if 'city' in candidate.keys() else 0
             db_user = Users(vk_user['id'],
                             vk_user['screen_name'],
                             vk_user['first_name'],
                             vk_user['last_name'],
                             vk_user['sex'],
-                            vk_user.get('city').get('id', 0),
+                            #vk_user.get('city').get('id', 0),
+                            city,
                             vk_user['bdate'],
                             vk_user.get('relation', 0),
                             'https://vk.com/' + vk_user['screen_name'])
@@ -198,12 +200,15 @@ def add_candidates(vk_user: dict, candidate_list: dict) -> None:
                     couple.insert(session=session)
             else:
                 # Кандидата ещё нет, надо добавить его и пару с ним
+
+                city = candidate['city']['id'] if 'city' in candidate.keys() else 0
                 db_cand = Users(candidate['id'],
                                 candidate['screen_name'],
                                 candidate['first_name'],
                                 candidate['last_name'],
                                 candidate['sex'],
-                                candidate.get('city').get('id', 0),
+                                #candidate.get('city').get('id', 0),
+                                city,
                                 candidate['bdate'],
                                 candidate.get('relation', 0),
                                 'https://vk.com/' + candidate['screen_name'])
