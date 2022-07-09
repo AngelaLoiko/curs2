@@ -2,13 +2,11 @@ import settings
 import vk_api
 import traceback
 from vk_api.longpoll import VkLongPoll, VkEventType
-from vk_api.bot_longpoll import VkBotLongPoll, VkBotEventType
 from vk_api.keyboard import VkKeyboard, VkKeyboardColor
 import db.base_db as dbo
 from sqlalchemy.orm.exc import DetachedInstanceError, NoResultFound, MultipleResultsFound
 from sqlalchemy.exc import IntegrityError
 from random import randrange, shuffle
-import db.base_db as db
 
 from util import pilot
 from vk_inter import vkqueries
@@ -55,6 +53,7 @@ class VKBot:
         # Получено новое сообщение от пользователя. Определяем пользователя и получаем его инфо
         if new_event.type == VkEventType.MESSAGE_NEW and new_event.to_me and new_event.text:
             self.id_user = new_event.user_id
+            self.id_peer = new_event.peer_id
             self.vk_us = vkqueries.VkUser(self.vk_user, self.id_user)
             self.name_user = self.vk_us.get_user_data()
             if not self.name_user:
@@ -65,6 +64,13 @@ class VKBot:
             msg = new_event.text  # текст сообщения
             # contact_id = pilot.contact_id_from_dict(new_event.extra_values)  # id контакта вызова кнопки
             # event_data = MessageEventData(self.id_user, msg_id, dt, msg, contact_id)
+
+            '''Запустили бота. 
+            Бот должен полезть в базу данных.
+            Процедура из базы должна вернуть заданных параметром непросмотренных людей- вернуть candidate_list
+            Если база пустая, candidate_list будет 
+            пустым (count == 0, items == []).'''
+            self.candidate_list = dbo.select_candidates(self.id_user)
 
             if new_event.text.lower() in ['привет', 'hello', 'hi', 'hi!', 'здравствуй', 'здравствуйте', 'привет!',
                                           'здорово!', 'здорово']:
@@ -96,7 +102,7 @@ class VKBot:
                 self.key_unnamed()
 
     def key_add_to_favor(self, keyboard=None):
-        dbo.pair_update(self.vk_us.user_id, self.candidate['vk_id'], new_status=2)
+        dbo.couple_update(self.vk_us.user_id, self.candidate['vk_id'], new_status=2)
 
         if self.candidate_list:
             first_name = self.candidate['first_name']
@@ -157,7 +163,6 @@ class VKBot:
         self.vk.method('messages.send', values)
 
     def key_next(self, keyboard=None):
-        dbo.pair_update(self.vk_us.user_id, self.candidate['vk_id'], new_status=1)
 
         self.current_candidate += 1
         if self.current_candidate < self.max_Candidates:
@@ -194,88 +199,25 @@ class VKBot:
         elif self.vk_us.data.get('home_town', None):
             search_params['hometown'] = self.vk_us.data.get['home_town']
         search_params['sex'] = 3 - self.vk_us.data['sex']
-        self.candidate_list = self.vk_candidates.get_users_search(**search_params)
+        if not self.candidate_list['items']:
+            self.candidate_list = self.vk_candidates.get_users_search(**search_params)
+            # Трекинг количества возвращаемых из ВК кандидатов
+            if len(self.candidate_list['items']) != settings.user_record['max_Candidates']:
+                print(f'■■■■■■■■■ Received {len(self.candidate_list["items"])} records from VK')
 
-        # inserting into USERS table current user and candidates
-        session = dbo.session_start()
-        db_user = dbo.Users(self.vk_us.user_id,
-                            self.vk_us.data['screen_name'],
-                            self.vk_us.data['first_name'],
-                            self.vk_us.data['last_name'],
-                            self.vk_us.data['sex'],
-                            self.vk_us.data['city']['id'],
-                            self.vk_us.data['bdate'],
-                            self.vk_us.data['relation'],
-                            'https://vk.com/' + self.vk_us.data['screen_name'])
-        db_user_exists = isinstance(dbo.get_user_by_vk(db_user.id_vk, session=session), dbo.DataBase)
-        if not db_user_exists:
-            db_user.insert(session=session)
-        for candidate in self.candidate_list['items']:
-            if not 'relation' in candidate:
-                candidate['relation'] = 0
-            if not 'city' in candidate:
-                candidate['city'] = self.vk_us.data['city']
-            db_cand = dbo.Users(candidate['id'],
-                                candidate['screen_name'],
-                                candidate['first_name'],
-                                candidate['last_name'],
-                                candidate['sex'],
-                                candidate['city']['id'],
-                                candidate['bdate'],
-                                candidate['relation'],
-                                'https://vk.com/' + candidate['screen_name'])
-            db_cand_exists = isinstance(dbo.get_user_by_vk(db_cand.id_vk, session=session), dbo.DataBase)
-            if not db_cand_exists:
-                db_cand.insert(session=session)
-            # перед поиском пары надо закоммитить текущего кандидата, иначе он не найдётся в базе
-            try:
-                session.commit()
-            except DetachedInstanceError as E:
-                pilot.interrupt(f'Ошибка вставки пользователя или кандидата в USERS. user={self.vk_us.user_id},'
-                                f'candidate={candidate["id"]}\n{E}')
-            except NoResultFound as E:
-                pilot.interrupt(f'Нет нужной записи в таблице USERS. user={self.vk_us.user_id}, '
-                                f'candidate={candidate["id"]}\n{E}')
-            except MultipleResultsFound as E:
-                pilot.interrupt(f'Более одной записи в таблице USERS. user={self.vk_us.user_id}, '
-                                f'candidate={candidate["id"]}\n{E}')
-
-            # добавление пары
-            db_pair = dbo.UserCandidate(db_user, db_cand)
-            db_pair_exists = isinstance(db_pair.find_pair(db_pair.id_user, db_pair.id_candidate, session=session),
-                                        dbo.DataBase)
-            if not db_pair_exists:
-                db_pair.insert(session=session)
-        try:
-            session.commit()
-        except IntegrityError as E:
-            # такая пара уже есть в USER_CANDIDATE, пропускаем
-            session.rollback()
-        dbo.session_end(session)
+        '''candidate_list сохраняется в базу- передается как параметр в процедуру, которая сохраняет в базу.'''
+        dbo.add_candidates(self.vk_us.data, self.candidate_list)
 
         self.current_candidate = 0
         self.offset += 1
         self.get_current_candidate()
 
     def get_current_candidate(self):
-        session = dbo.session_start()
-        db_user = dbo.get_user_by_vk(self.id_user, session=session)
-        if not db_user:
-            return None
-        db_pair = db_user.select_pair(session=session)
-        db_cand = dbo.get_user_by_id(db_pair.id_candidate, session=session)
-        if db_cand.id_vk:
-            # найден кандидат в БД
-            rec_cand = {'first_name': db_cand.first_name,
-                        'last_name': db_cand.last_name,
-                        'id': db_cand.id_vk}
-        else:
-            # не найден в БД, наверное, стоит запускать новый поиск, точнее, вернуться в старый?
-            rec_cand = self.candidate_list['items'][self.current_candidate]
+
+        rec_cand = self.candidate_list['items'][self.current_candidate]
         message = f'{rec_cand["first_name"]} {rec_cand["last_name"]}\nhttps://vk.com/id{rec_cand["id"]}'
-        dict_photos = dbo.select_photos(db_cand.id_user, session=session)
-        dbo.session_end(session)
-        if not len(dict_photos['photos']):
+        dict_photos = dbo.select_photos(rec_cand['id'])
+        if not dict_photos['photos']:
             try:
                 dict_photos = self.vk_candidates._get_user_photos(rec_cand['id'])
             except Exception as Error:
@@ -306,11 +248,14 @@ class VKBot:
         params['message_text'] = message
 
         # Формирование адресата
-        params['receiver_user_id'] = self.id_user
-        #params['receiver_user_id'] = '2000000001'  # peer_id
+        params['receiver_user_id'] = self.id_peer
 
         # Отправка сообщения
         self.vk_send_mess.send_message(**params)
+
+        # Обновление статуса кандидата в "Просмотрен"
+        dbo.couple_update(self.id_user, self.candidate['vk_id'], new_status=1)
+
 
     def startbot(self):
         """Главная функция запуска бота - ожидание новых событий (сообщений)"""
